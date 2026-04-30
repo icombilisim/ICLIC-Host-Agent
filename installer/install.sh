@@ -53,14 +53,19 @@ chmod 0755 "${INSTALL_DIR}/iclic-host-agent.new"
 mv "${INSTALL_DIR}/iclic-host-agent.new" "${INSTALL_DIR}/iclic-host-agent"
 
 echo ">> Exchanging enrollment token for permanent HMAC credentials"
+# /api/v1/agent/enroll is public — the one-shot token in the body is the
+# credential. The path lives outside /api/v1/server/** so it falls through
+# the HMAC-protected chain. (#2)
 ENROLL_RESPONSE="$(curl -fsSL -X POST \
   -H "Content-Type: application/json" \
   -d "{\"token\":\"${TOKEN}\"}" \
-  "${ICLIC_URL}/api/v1/server/enroll")"
+  "${ICLIC_URL}/api/v1/agent/enroll")"
 
-SERVER_ID="$(echo "${ENROLL_RESPONSE}"   | sed -n 's/.*"server_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-AGENT_KID="$(echo "${ENROLL_RESPONSE}"   | sed -n 's/.*"agent_kid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-AGENT_SECRET="$(echo "${ENROLL_RESPONSE}" | sed -n 's/.*"agent_secret"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+# ICLIC's default Jackson serializer emits camelCase keys — extract them
+# directly so we don't depend on a JSON parser at install time. (#2)
+SERVER_ID="$(echo "${ENROLL_RESPONSE}"   | sed -n 's/.*"serverId"[[:space:]]*:[[:space:]]*\([0-9]\+\).*/\1/p')"
+AGENT_KID="$(echo "${ENROLL_RESPONSE}"   | sed -n 's/.*"agentKid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+AGENT_SECRET="$(echo "${ENROLL_RESPONSE}" | sed -n 's/.*"agentSecret"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 
 if [[ -z "${SERVER_ID}" || -z "${AGENT_KID}" || -z "${AGENT_SECRET}" ]]; then
   echo "ERROR: enrollment response missing fields:" >&2

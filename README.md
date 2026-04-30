@@ -7,8 +7,9 @@ ONPREM customers should be able to read every line before installing it.
 ## What it does
 
 Every 60 seconds, the agent reads a small set of metrics from the local
-operating system and POSTs them to ICLIC over HTTPS, signed with an HMAC key
-that was issued during enrollment. That is the entire job.
+operating system and POSTs them to ICLIC over HTTPS, authenticated with a
+PAT-style bearer key (`Bearer <kid>.<secret>`) that was issued during
+enrollment. That is the entire job.
 
 ## What it reads from the host
 
@@ -52,9 +53,9 @@ curl -fsSL https://github.com/icombilisim/ICLIC-Host-Agent/releases/latest/downl
   | TOKEN=<one-shot-token> ICLIC_URL=https://iclic.icombilisim.com bash
 ```
 
-The token is single-use and TTL-capped. The installer exchanges it for a
-permanent HMAC key pair, writes the config, installs the systemd unit, and
-starts the service.
+The token is single-use and TTL-capped. The installer exchanges it at
+`POST /api/v1/agent/enroll` for a permanent bearer (`<kid>.<secret>`),
+writes the config, installs the systemd unit, and starts the service.
 
 ## Verify
 
@@ -70,7 +71,7 @@ to `HEALTHY`.
 ## Protocol
 
 The heartbeat payload contract lives in [`docs/protocol.md`](docs/protocol.md).
-Both the agent and ICLIC pin a `protocol_version`. ICLIC accepts the last N
+Both the agent and ICLIC pin a `protocolVersion`. ICLIC accepts the last N
 versions; the agent emits the latest it knows.
 
 ## Build from source
