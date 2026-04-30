@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build (linux-amd64)
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: go build -trimpath -ldflags "-s -w" -o dist/iclic-host-agent-linux-amd64 ./cmd/agent
+
+      - name: go build (linux-arm64)
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: go build -trimpath -ldflags "-s -w" -o dist/iclic-host-agent-linux-arm64 ./cmd/agent
+
+      - name: go test
+        run: go test ./...
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iclic-host-agent
+          path: dist/
+          retention-days: 7

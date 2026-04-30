@@ -1,0 +1,31 @@
+[Unit]
+Description=ICLIC Host Agent
+Documentation=https://github.com/icombilisim/ICLIC-Host-Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=iclic-agent
+Group=iclic-agent
+ExecStart=/opt/iclic-host-agent/iclic-host-agent
+Environment=ICLIC_AGENT_CONFIG=/etc/iclic-host-agent/config.json
+Restart=on-failure
+RestartSec=10s
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictRealtime=yes
+ReadWritePaths=/var/lib/iclic-host-agent
+
+[Install]
+WantedBy=multi-user.target
