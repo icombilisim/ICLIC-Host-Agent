@@ -1,9 +1,8 @@
 // Package heartbeat builds and sends a heartbeat payload to ICLIC.
 //
-// Real metric collectors (CPU, memory, disk, OS, security updates) land in a
-// follow-up commit. The current Sender emits a placeholder payload so the
-// end-to-end enrollment + bearer-auth + protocol-version flow can be exercised
-// against the ICLIC backend stub.
+// The metric body is produced by the collector pipeline (see internal/collectors)
+// — the heartbeat package only owns the wire envelope, transport, and the
+// agent-intrinsic fields the operator can't redefine (reported_at, status).
 package heartbeat
 
 import (
@@ -16,31 +15,45 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/icombilisim/iclic-host-agent/internal/collectors"
 	"github.com/icombilisim/iclic-host-agent/internal/config"
 )
 
 // AgentVersion is bumped per release; protocol-level changes also bump
 // ProtocolVersion in the payload.
-const AgentVersion = "0.1.0-scaffold"
+const AgentVersion = "0.2.0"
 
 // ProtocolVersion is the heartbeat schema version. Bumped on breaking changes;
 // ICLIC accepts the last N versions per docs/protocol.md.
 const ProtocolVersion = 1
 
+// perBindingTimeout caps any single primitive invocation. The total walltime
+// of one tick is also bounded by the heartbeat ctx — see SendOnce.
+const perBindingTimeout = 5 * time.Second
+
+// totalCollectTimeout caps the entire collector phase so a slow probe never
+// pushes the heartbeat past the next tick. Bindings run concurrently, so the
+// budget is per-tick total — not per-binding.
+const totalCollectTimeout = 30 * time.Second
+
 // Sender posts heartbeats to the configured ICLIC backend.
 type Sender struct {
-	cfg    *config.Config
-	bearer string
-	client *http.Client
+	cfg          *config.Config
+	bearer       string
+	client       *http.Client
+	collectorDir string
+	registry     map[string]collectors.PrimitiveFunc
 }
 
 // NewSender wires a Sender from agent config. The bearer is precomputed once
 // at construction — kid+secret are immutable for the agent's lifetime.
-func NewSender(cfg *config.Config) *Sender {
+func NewSender(cfg *config.Config, collectorDir string) *Sender {
 	return &Sender{
-		cfg:    cfg,
-		bearer: cfg.AgentKid + "." + cfg.AgentSecret,
-		client: &http.Client{Timeout: 10 * time.Second},
+		cfg:          cfg,
+		bearer:       cfg.AgentKid + "." + cfg.AgentSecret,
+		client:       &http.Client{Timeout: 10 * time.Second},
+		collectorDir: collectorDir,
+		registry:     collectors.DefaultRegistry(),
 	}
 }
 
@@ -48,7 +61,7 @@ func NewSender(cfg *config.Config) *Sender {
 // Errors are returned but not retried — the caller's ticker will retry on the
 // next interval.
 func (s *Sender) SendOnce(ctx context.Context) error {
-	payload := s.buildPayload()
+	payload := s.buildPayload(ctx)
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal payload: %w", err)
@@ -61,10 +74,6 @@ func (s *Sender) SendOnce(ctx context.Context) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "iclic-host-agent/"+AgentVersion)
-	// PAT-style bearer: ICLIC splits at the first '.' and verifies the
-	// secret half against the stored SHA-256 digest. Plain TLS provides
-	// confidentiality on the wire — the previous request-signing scheme
-	// added complexity without measurable benefit. (#2)
 	req.Header.Set("Authorization", "Bearer "+s.bearer)
 
 	resp, err := s.client.Do(req)
@@ -77,48 +86,54 @@ func (s *Sender) SendOnce(ctx context.Context) error {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("heartbeat rejected: status=%d body=%s", resp.StatusCode, string(respBody))
 	}
-	slog.Debug("heartbeat accepted", "status", resp.StatusCode)
+	// INFO so journalctl shows the operator a heartbeat actually went through
+	// — DEBUG was effectively silent at the default log level. (#35)
+	slog.Info("heartbeat accepted",
+		"status", resp.StatusCode,
+		"binding_count", payload.metricCount(),
+	)
 	return nil
 }
 
 // Payload is the wire shape ICLIC accepts on
-// POST /api/v1/server/{serverId}/heartbeat. Top-level keys are camelCase to
-// match ICLIC's default Jackson naming; the inner Metrics map is free-form so
-// the agent can grow new fields without an ICLIC-side schema change. (#2)
+// POST /api/v1/server/{serverId}/heartbeat.
 type Payload struct {
 	AgentVersion    string         `json:"agentVersion"`
 	ProtocolVersion int            `json:"protocolVersion"`
 	Metrics         map[string]any `json:"metrics"`
 }
 
-// Disk is a single mount's usage snapshot. It lives inside the free-form
-// metrics map so ICLIC stores it as JSON without a per-field column.
-type Disk struct {
-	Mount   string  `json:"mount"`
-	UsedPct float64 `json:"used_pct"`
-	TotalGB int64   `json:"total_gb"`
-}
+func (p Payload) metricCount() int { return len(p.Metrics) }
 
-// buildPayload assembles the wire payload. Real collectors land in a follow-up
-// commit; the scaffold emits an empty disks list + zero metrics so ICLIC's
-// 400-validation path is exercised with a well-formed body. (#2)
-func (s *Sender) buildPayload() Payload {
+// buildPayload runs the collector pipeline and stamps in the agent-intrinsic
+// fields the operator can't redefine.
+func (s *Sender) buildPayload(parent context.Context) Payload {
+	ctx, cancel := context.WithTimeout(parent, totalCollectTimeout)
+	defer cancel()
+
+	bindings, err := collectors.LoadDir(s.collectorDir)
+	if err != nil {
+		slog.Warn("collectors.LoadDir failed — sending heartbeat without metrics",
+			"dir", s.collectorDir,
+			"err", err,
+		)
+		bindings = nil
+	}
+
+	metrics := collectors.Run(ctx, bindings, s.registry, perBindingTimeout)
+
+	// Agent-intrinsic fields go in last so they always win over a binding
+	// that tries to redefine them. `reported_at` is the agent's wall clock
+	// at sample time; ICLIC also stamps `received_at` server-side so clock
+	// skew is observable.
+	metrics["reported_at"] = time.Now().UTC().Format(time.RFC3339)
+	if _, ok := metrics["status"]; !ok {
+		metrics["status"] = "UP"
+	}
+
 	return Payload{
 		AgentVersion:    AgentVersion,
 		ProtocolVersion: ProtocolVersion,
-		Metrics: map[string]any{
-			"reported_at":                 time.Now().UTC().Format(time.RFC3339),
-			"status":                      "UP",
-			"uptime_sec":                  int64(0),
-			"os_name":                     "",
-			"os_version":                  "",
-			"kernel":                      "",
-			"cpu_load_1m":                 0.0,
-			"cpu_load_5m":                 0.0,
-			"mem_used_pct":                0.0,
-			"mem_total_mb":                int64(0),
-			"disks":                       []Disk{},
-			"os_security_updates_pending": 0,
-		},
+		Metrics:         metrics,
 	}
 }

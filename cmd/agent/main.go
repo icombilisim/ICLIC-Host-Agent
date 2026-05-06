@@ -1,9 +1,9 @@
 // Package main is the entry point for the ICLIC Host Agent.
 //
 // The agent's only job is to send a periodic heartbeat to the ICLIC backend.
-// Real metric collection lands in follow-up commits — this initial scaffold
-// emits a placeholder payload so the end-to-end HMAC + enrollment flow can be
-// wired through against a stub backend.
+// The metric body is produced by a pluggable collector pipeline reading
+// /etc/iclic-host-agent/collectors.d/*.yaml — see internal/collectors and
+// docs/collectors.md for the operator-facing schema.
 package main
 
 import (
@@ -24,6 +24,9 @@ const (
 	exitInternal = 3
 )
 
+// defaultCollectorDir is overridable via $ICLIC_COLLECTOR_DIR for dev runs.
+const defaultCollectorDir = "/etc/iclic-host-agent/collectors.d"
+
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
@@ -33,10 +36,16 @@ func main() {
 		slog.Error("failed to load config", "err", err)
 		os.Exit(exitConfig)
 	}
+	collectorDir := os.Getenv("ICLIC_COLLECTOR_DIR")
+	if collectorDir == "" {
+		collectorDir = defaultCollectorDir
+	}
 	slog.Info("agent starting",
 		"server_id", cfg.ServerID,
 		"iclic_url", cfg.ICLICUrl,
 		"interval_sec", cfg.HeartbeatIntervalSeconds,
+		"collector_dir", collectorDir,
+		"agent_version", heartbeat.AgentVersion,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -50,7 +59,7 @@ func main() {
 		cancel()
 	}()
 
-	sender := heartbeat.NewSender(cfg)
+	sender := heartbeat.NewSender(cfg, collectorDir)
 	ticker := time.NewTicker(time.Duration(cfg.HeartbeatIntervalSeconds) * time.Second)
 	defer ticker.Stop()
 

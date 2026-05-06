@@ -41,6 +41,7 @@ fi
 echo ">> Creating directories"
 install -d -o root -g root -m 0755 "${INSTALL_DIR}"
 install -d -o root -g "${SERVICE_USER}" -m 0750 "${CONFIG_DIR}"
+install -d -o root -g "${SERVICE_USER}" -m 0750 "${CONFIG_DIR}/collectors.d"
 install -d -o "${SERVICE_USER}" -g "${SERVICE_USER}" -m 0700 "${STATE_DIR}"
 
 echo ">> Downloading binary (${AGENT_VERSION}, linux-${ARCH})"
@@ -86,6 +87,22 @@ cat > "${CONFIG_DIR}/config.json" <<EOF
 EOF
 chown root:"${SERVICE_USER}" "${CONFIG_DIR}/config.json"
 chmod 0640 "${CONFIG_DIR}/config.json"
+
+echo ">> Dropping default linux-host collector profile"
+# Operator can edit / replace / extend this file; new files (10-wildfly.yaml,
+# etc.) are picked up on the next tick — no agent restart required. (#35)
+DEFAULT_PROFILE_URL="https://raw.githubusercontent.com/icombilisim/ICLIC-Host-Agent/main/configs/00-linux-host.yaml"
+if [[ "${AGENT_VERSION}" != "latest" ]]; then
+  DEFAULT_PROFILE_URL="https://raw.githubusercontent.com/icombilisim/ICLIC-Host-Agent/${AGENT_VERSION}/configs/00-linux-host.yaml"
+fi
+LOCAL_PROFILE="$(dirname "$0")/../configs/00-linux-host.yaml"
+if [[ -f "${LOCAL_PROFILE}" ]]; then
+  install -o root -g "${SERVICE_USER}" -m 0640 "${LOCAL_PROFILE}" "${CONFIG_DIR}/collectors.d/00-linux-host.yaml"
+else
+  curl -fsSL "${DEFAULT_PROFILE_URL}" -o "${CONFIG_DIR}/collectors.d/00-linux-host.yaml"
+  chown root:"${SERVICE_USER}" "${CONFIG_DIR}/collectors.d/00-linux-host.yaml"
+  chmod 0640 "${CONFIG_DIR}/collectors.d/00-linux-host.yaml"
+fi
 
 echo ">> Installing systemd unit"
 install -o root -g root -m 0644 \

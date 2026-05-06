@@ -81,27 +81,39 @@ The wire envelope is **camelCase** at the top level (matching ICLIC's default
 Jackson naming) and a free-form `metrics` map below. The agent grows new
 metric keys over time without an ICLIC-side schema change.
 
+The body of `metrics` is produced by the **collector pipeline** — see
+`docs/collectors.md` for the operator-facing YAML schema. The keys below are
+what the default `00-linux-host.yaml` profile produces; operators can add
+more (or remove some) without an agent code change.
+
 ```json
 {
-  "agentVersion": "0.1.0",
+  "agentVersion": "0.2.0",
   "protocolVersion": 1,
   "metrics": {
     "reported_at": "2026-04-30T12:34:56Z",
     "status": "UP",
-    "uptime_sec": 1234567,
+    "hostname": "api-01",
+    "uptime_seconds": 1234567,
     "os_name": "ubuntu",
     "os_version": "24.04",
     "kernel": "6.8.0-31-generic",
-    "cpu_load_1m": 0.45,
-    "cpu_load_5m": 0.31,
+    "arch": "amd64",
+    "cpu_count": 4,
+    "load_1m": 0.45,
+    "load_5m": 0.31,
+    "load_15m": 0.20,
     "mem_used_pct": 48.2,
     "mem_total_mb": 16384,
+    "mem_used_mb": 7900,
+    "mem_available_mb": 8484,
     "disks": [
       { "mount": "/",                "used_pct": 22.0, "total_gb": 100 },
       { "mount": "/var/lib/docker",  "used_pct": 56.0, "total_gb": 500 }
     ],
-    "docker_version": "26.1.4",
-    "os_security_updates_pending": 0
+    "disk_used_pct_max": 56.0,
+    "os_security_updates_pending": 0,
+    "reboot_required": false
   }
 }
 ```
@@ -123,11 +135,12 @@ metric keys over time without an ICLIC-side schema change.
 |-------|-------|
 | `protocolVersion` | Integer. Bumped on breaking change. ICLIC accepts the last N versions. |
 | `agentVersion` | Free-form. Used by ICLIC to emit "agent outdated" badges; not load-bearing. |
-| `metrics.status` | `UP` \| `DEGRADED` — agent's self-assessment. ICLIC may override to `STALE` on missed heartbeats. |
-| `metrics.disks[]` | One entry per mount the agent is configured to watch. Empty array is legal. |
-| `metrics.docker_version` | Optional — omitted on hosts without Docker. |
-| `metrics.os_security_updates_pending` | -1 means "agent could not determine" (e.g. apt locked, dnf timeout). |
+| `metrics.status` | `UP` \| `DEGRADED` — agent's self-assessment. Default is `UP`; an operator-defined binding may override it. ICLIC overrides to `STALE` server-side on missed heartbeats. |
+| `metrics.disks[]` | One entry per real mount; pseudo filesystems excluded by default. Empty array is legal. |
+| `metrics.disk_used_pct_max` | Max `used_pct` across `disks[]`; the backend `buildSummary` reads this directly. |
+| `metrics.os_security_updates_pending` | `-1` means "agent could not determine" (apt locked, RHEL host without dnf primitive, etc.) |
 | `metrics.reported_at` | Agent-side wall clock at sample time. ICLIC also stamps its own `received_at` server-side; the two are kept separate so clock skew is observable. |
+| Anything else | Free-form — operator-defined bindings produce whatever keys they declare. The backend stores the full payload verbatim in `server_heartbeat_history.payload_json`. |
 
 ## Versioning rules
 

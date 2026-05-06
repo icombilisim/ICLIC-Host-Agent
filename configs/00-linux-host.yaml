@@ -1,0 +1,93 @@
+# Default Linux host metrics shipped with the agent. Drop new files alongside
+# (10-wildfly.yaml, 20-nginx.yaml, etc.) to extend; this file's keys are what
+# the ICLIC UI renders by default. Re-read on every tick — no agent restart
+# needed when you edit it.
+#
+# Schema: each entry is { id, primitive, args, output_key }. See
+# docs/collectors.md for the full primitive reference.
+
+# CPU load — 1-/5-/15-minute windows
+- id: load_1m
+  primitive: procfs.loadavg
+  args: { window: 1m }
+  output_key: load_1m
+- id: load_5m
+  primitive: procfs.loadavg
+  args: { window: 5m }
+  output_key: load_5m
+- id: load_15m
+  primitive: procfs.loadavg
+  args: { window: 15m }
+  output_key: load_15m
+- id: cpu_count
+  primitive: procfs.cpu_count
+  args: {}
+  output_key: cpu_count
+
+# Memory — used % is the headline; absolute MB for context
+- id: mem_used_pct
+  primitive: procfs.memory
+  args: { field: used_pct }
+  output_key: mem_used_pct
+- id: mem_total_mb
+  primitive: procfs.memory
+  args: { field: total_mb }
+  output_key: mem_total_mb
+- id: mem_used_mb
+  primitive: procfs.memory
+  args: { field: used_mb }
+  output_key: mem_used_mb
+- id: mem_available_mb
+  primitive: procfs.memory
+  args: { field: available_mb }
+  output_key: mem_available_mb
+
+# Disk — full per-mount list AND the worst-mount % (backend uses the latter
+# for the one-line "disk=72%" summary)
+- id: disks
+  primitive: disk.usage
+  args: { exclude_pseudo: true }
+  output_key: disks
+- id: disk_used_pct_max
+  primitive: disk.max_used_pct
+  args: { exclude_pseudo: true }
+  output_key: disk_used_pct_max
+
+# Uptime
+- id: uptime_seconds
+  primitive: procfs.uptime
+  args: {}
+  output_key: uptime_seconds
+
+# OS identity
+- id: os_id
+  primitive: os.release
+  args: { field: id }
+  output_key: os_name
+- id: os_version
+  primitive: os.release
+  args: { field: version_id }
+  output_key: os_version
+- id: kernel
+  primitive: os.kernel
+  args: {}
+  output_key: kernel
+- id: arch
+  primitive: os.arch
+  args: {}
+  output_key: arch
+- id: hostname
+  primitive: os.hostname
+  args: {}
+  output_key: hostname
+
+# Patch hygiene — Debian/Ubuntu via apt; -1 means agent could not determine
+# (apt locked, RHEL host without dnf primitive, etc.)
+- id: security_updates
+  primitive: apt.security_count
+  args: {}
+  output_key: os_security_updates_pending
+- id: reboot_required
+  primitive: reboot.required
+  args: {}
+  output_key: reboot_required
