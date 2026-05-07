@@ -1,0 +1,54 @@
+# ICOSYS app metrics via Spring Boot Actuator. Only meaningful on hosts
+# that run an ICOSYS service (icglb, icbpm, icdms, ichrm, icasm, icwfl).
+# Drop this file on hosts that don't, or trim it to the services that
+# actually live there.
+#
+# Endpoints assume the standard ICOSYS context-path + actuator base
+# (`/<svc>/services/actuator/...`) and trust that the local agent can hit
+# the loopback API. If actuator is auth-protected on a given host, add
+# basic_user/basic_pass to each binding's args.
+#
+# Each `metrics/<id>` shape is `{ measurements: [{statistic, value}, …] }` —
+# we pull `measurements.0.value` which is the COUNT/VALUE statistic for
+# the canonical Spring metrics. health is a single string.
+
+# ICGLB (core)
+- id: icglb_health
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8010/icglb/services/actuator/health
+    path: status
+    timeout_sec: 3
+  output_key: icglb_health
+
+- id: icglb_uptime_sec
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8010/icglb/services/actuator/metrics/process.uptime
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icglb_uptime_sec
+
+- id: icglb_heap_used
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8010/icglb/services/actuator/metrics/jvm.memory.used
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icglb_heap_used_bytes
+
+- id: icglb_threads_live
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8010/icglb/services/actuator/metrics/jvm.threads.live
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icglb_threads_live
+
+- id: icglb_http_requests
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8010/icglb/services/actuator/metrics/http.server.requests
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icglb_http_requests_total

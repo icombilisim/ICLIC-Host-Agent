@@ -1,0 +1,22 @@
+# Docker visibility — fleet-wide. Reads /var/run/docker.sock directly so the
+# agent only needs read access to the socket (run as root, or join the docker
+# group). The two bindings split intentionally:
+#
+#   docker_summary  — total + per-state counts + thin per-container row list,
+#                     fetched on every tick, cheap.
+#   docker_stats    — per-container CPU%/MEM%/restarts; one /stats call per
+#                     running container per tick. Heavier — expect ~50-150ms
+#                     extra at 10 containers.
+#
+# Drop this file to disable Docker collection, or move it to a longer-interval
+# host that doesn't run Docker.
+
+- id: docker_summary
+  primitive: docker.containers
+  args: { all: true }
+  output_key: docker_summary
+
+- id: docker_stats
+  primitive: docker.stats
+  args: { timeout_sec: 6 }
+  output_key: docker_stats

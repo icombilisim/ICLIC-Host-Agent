@@ -1,0 +1,18 @@
+# Systemd unit resource visibility. Edit the units list to match what you
+# actually run on this host — the agent doesn't autodiscover. CPU is shipped
+# as a cumulative nanosecond counter (CPUUsageNSec); the backend turns
+# successive heartbeats into a rate, so a single tick on its own doesn't
+# yield a CPU% — that's deliberate, it keeps per-tick cost flat.
+#
+# Default list is conservative: the LTS daemons most ICOM hosts always have.
+# Add more by appending strings; remove what doesn't apply.
+
+- id: systemd_units
+  primitive: systemd.resources
+  args:
+    units:
+      - "docker.service"
+      - "ssh.service"
+      - "cron.service"
+      - "fail2ban.service"
+  output_key: systemd_units

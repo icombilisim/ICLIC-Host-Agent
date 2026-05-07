@@ -20,9 +20,13 @@ func DefaultRegistry() map[string]PrimitiveFunc {
 		"disk.max_used_pct":   diskMaxUsedPct,
 		"exec":                execPrimitive,
 		"systemctl.is_active": systemctlIsActive,
+		"systemd.resources":   systemdResources,
 		"tcp.connect":         tcpConnect,
 		"http.get":            httpGet,
+		"http.get_json":       httpGetJSON,
 		"file.stat":           fileStat,
 		"apt.security_count":  aptSecurityCount,
+		"docker.containers":   dockerContainers,
+		"docker.stats":        dockerStats,
 	}
 }
