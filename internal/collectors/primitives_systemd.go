@@ -74,36 +74,38 @@ func systemdResources(ctx context.Context, args map[string]any) (any, error) {
 }
 
 func systemdShowOne(ctx context.Context, unit string, props []string) (map[string]any, error) {
-	cmd := exec.CommandContext(ctx, "systemctl", "show", "-p", strings.Join(props, ","), "--value", "--", unit)
+	// NOTE: we deliberately do NOT pass `--value` here. With --value, systemctl
+	// emits one bare value per line in DBus property order (numerics first,
+	// strings after) — NOT in the order we passed via -p. Parsing by index
+	// silently shuffled fields (MainPID landed under Id, MemoryCurrent under
+	// SubState, etc.). The `Key=value` form is order-agnostic and forward-
+	// compatible if systemd ever adds new lines. (#40)
+	cmd := exec.CommandContext(ctx, "systemctl", "show", "-p", strings.Join(props, ","), "--", unit)
 	raw, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("systemctl show %s: %w", unit, err)
 	}
-	lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
-	if len(lines) < len(props) {
-		return nil, fmt.Errorf("systemctl show %s: expected %d lines, got %d", unit, len(props), len(lines))
-	}
 
-	get := func(name string) string {
-		for i, p := range props {
-			if p == name && i < len(lines) {
-				return strings.TrimSpace(lines[i])
-			}
+	values := make(map[string]string, len(props))
+	for _, line := range strings.Split(strings.TrimRight(string(raw), "\n"), "\n") {
+		eq := strings.IndexByte(line, '=')
+		if eq <= 0 {
+			continue
 		}
-		return ""
+		values[line[:eq]] = strings.TrimSpace(line[eq+1:])
 	}
 
-	memBytes := parseInt64(get("MemoryCurrent"))
-	cpuNs := parseInt64(get("CPUUsageNSec"))
-	mainPID := parseInt64(get("MainPID"))
-	nRestarts := parseInt64(get("NRestarts"))
+	memBytes := parseInt64(values["MemoryCurrent"])
+	cpuNs := parseInt64(values["CPUUsageNSec"])
+	mainPID := parseInt64(values["MainPID"])
+	nRestarts := parseInt64(values["NRestarts"])
 
 	return map[string]any{
 		"unit":         unit,
-		"id":           get("Id"),
-		"active_state": get("ActiveState"),
-		"sub_state":    get("SubState"),
-		"load_state":   get("LoadState"),
+		"id":           values["Id"],
+		"active_state": values["ActiveState"],
+		"sub_state":    values["SubState"],
+		"load_state":   values["LoadState"],
 		"main_pid":     mainPID,
 		"memory_mb":    memBytes / (1024 * 1024),
 		"cpu_ns":       cpuNs,

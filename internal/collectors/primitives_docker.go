@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -184,17 +185,6 @@ func dockerStats(ctx context.Context, args map[string]any) (any, error) {
 		return nil, err
 	}
 
-	// Per-container budget: split the timeout across them so one slow stats
-	// call can't starve the rest. Floor at 500ms so the dial+JSON overhead
-	// has a chance.
-	per := timeout
-	if n := len(running); n > 1 {
-		per = timeout / time.Duration(n)
-		if per < 500*time.Millisecond {
-			per = 500 * time.Millisecond
-		}
-	}
-
 	type statsRow struct {
 		Name         string  `json:"name"`
 		Image        string  `json:"image"`
@@ -205,28 +195,41 @@ func dockerStats(ctx context.Context, args map[string]any) (any, error) {
 		MemPct       float64 `json:"mem_pct"`
 		RestartCount int     `json:"restart_count"`
 	}
-	out := make([]statsRow, 0, len(running))
-	for _, c := range running {
-		name := "?"
-		if len(c.Names) > 0 {
-			name = strings.TrimPrefix(c.Names[0], "/")
-		}
-		row := statsRow{
-			Name: name, Image: c.Image, State: c.State,
-			RestartCount: dockerRestartCount(ctx, socket, c.ID, per),
-		}
 
-		var s dockerStatsResponse
-		if err := dockerGet(ctx, socket, "/containers/"+c.ID+"/stats?stream=false", per, &s); err == nil {
-			row.CPUPct = roundTo(calcCPUPct(s), 2)
-			row.MemUsedMB = s.MemoryStats.Usage / (1024 * 1024)
-			row.MemLimitMB = s.MemoryStats.Limit / (1024 * 1024)
-			if s.MemoryStats.Limit > 0 {
-				row.MemPct = roundTo(float64(s.MemoryStats.Usage)*100.0/float64(s.MemoryStats.Limit), 2)
+	// Fan out: Docker's /stats?stream=false blocks for one collector tick
+	// (~1s) before responding, so serializing N containers blew the budget
+	// — the previous code divided `timeout` by N and floored at 500ms, which
+	// timed out *every* request and left all fields zeroed out in the
+	// payload. Each goroutine now gets the full timeout; dockerd handles
+	// dozens of concurrent socket clients without trouble. (#40)
+	out := make([]statsRow, len(running))
+	var wg sync.WaitGroup
+	for i, c := range running {
+		i, c := i, c
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			name := "?"
+			if len(c.Names) > 0 {
+				name = strings.TrimPrefix(c.Names[0], "/")
 			}
-		}
-		out = append(out, row)
+			row := statsRow{
+				Name: name, Image: c.Image, State: c.State,
+				RestartCount: dockerRestartCount(ctx, socket, c.ID, timeout),
+			}
+			var s dockerStatsResponse
+			if err := dockerGet(ctx, socket, "/containers/"+c.ID+"/stats?stream=false", timeout, &s); err == nil {
+				row.CPUPct = roundTo(calcCPUPct(s), 2)
+				row.MemUsedMB = s.MemoryStats.Usage / (1024 * 1024)
+				row.MemLimitMB = s.MemoryStats.Limit / (1024 * 1024)
+				if s.MemoryStats.Limit > 0 {
+					row.MemPct = roundTo(float64(s.MemoryStats.Usage)*100.0/float64(s.MemoryStats.Limit), 2)
+				}
+			}
+			out[i] = row
+		}()
 	}
+	wg.Wait()
 	return out, nil
 }
 
