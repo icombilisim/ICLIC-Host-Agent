@@ -2,6 +2,7 @@ package collectors
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -19,7 +20,7 @@ import (
 //
 //	cmd:         []string         required — argv-style, no shell expansion
 //	timeout_sec: number           optional, default 5, capped at 30
-//	parse:       "raw" (default) | "trimmed" | "int" | "float"
+//	parse:       "raw" (default) | "trimmed" | "int" | "float" | "json"
 //
 // Stdout-only by design — stderr is dropped to keep the metric value clean.
 // A non-zero exit is treated as an error and the metric is omitted from the
@@ -67,8 +68,14 @@ func execPrimitive(ctx context.Context, args map[string]any) (any, error) {
 			return nil, fmt.Errorf("parse float: %w", err)
 		}
 		return f, nil
+	case "json":
+		var value any
+		if err := json.Unmarshal([]byte(s), &value); err != nil {
+			return nil, fmt.Errorf("parse json: %w", err)
+		}
+		return value, nil
 	default:
-		return nil, fmt.Errorf("unknown parse %q (want raw | trimmed | int | float)", parse)
+		return nil, fmt.Errorf("unknown parse %q (want raw | trimmed | int | float | json)", parse)
 	}
 }
 

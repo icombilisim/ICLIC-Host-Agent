@@ -58,6 +58,41 @@ wire — there is no per-request signature.
 The same bearer scheme is used for every authenticated `/api/v1/server/**`
 endpoint, so the agent does not need separate credentials per call.
 
+### Runtime version signals
+
+```
+POST {ICLIC_URL}/api/v1/server/runtime-instances/heartbeat
+Content-Type:  application/json
+Authorization: Bearer <kid>.<secret>
+User-Agent:    iclic-host-agent/<version>
+```
+
+The agent calls this endpoint once for each item found under
+`metrics.runtime_instances` after a host heartbeat is accepted. Failures are
+logged per item but do not fail the host heartbeat.
+
+```json
+{
+  "productCode": "ICOSYS",
+  "componentCode": "hrm-backend",
+  "instanceKey": "prod-api-01:hrm-backend",
+  "environment": "PROD",
+  "status": "HEALTHY",
+  "versionSource": "HOST_AGENT",
+  "runningVersion": "1.21.1",
+  "gitCommit": "abc1234",
+  "payload": {
+    "source": "systemd",
+    "unit": "icosys-hrm.service"
+  }
+}
+```
+
+For host-agent credentials, ICLIC binds the signal to the authenticated server
+and requires `productCode` + `componentCode` unless `runtimeComponentId` is
+supplied. Installation credentials may also call the same endpoint; ICLIC then
+constrains writes to the installation's own product.
+
 ### Why not request-signing?
 
 Earlier drafts of this protocol used HMAC-SHA256 over a canonical request
@@ -88,7 +123,7 @@ more (or remove some) without an agent code change.
 
 ```json
 {
-  "agentVersion": "0.2.0",
+  "agentVersion": "0.3.0",
   "protocolVersion": 1,
   "metrics": {
     "reported_at": "2026-04-30T12:34:56Z",

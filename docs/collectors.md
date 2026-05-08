@@ -178,6 +178,52 @@ up the new keys automatically. The Server Detail "Host Metrics" panel renders
 the well-known keys from the linux-host profile by default; everything else
 is visible via the raw payload viewer in the "Heartbeat History" panel.
 
+## Runtime deployment status
+
+ICLIC also accepts runtime version signals under the reserved
+`runtime_instances` output key. The agent forwards each item to
+`POST /api/v1/server/runtime-instances/heartbeat` after the normal host
+heartbeat succeeds. This keeps Docker, systemd, WildFly, PHP, Python, .NET,
+Go, and other legacy stacks on one collection path.
+
+The easiest integration point is an operator script that prints JSON and an
+`exec` binding with `parse: json`:
+
+```yaml
+# /etc/iclic-host-agent/collectors.d/40-runtime-instances.yaml
+- id: runtime_instances
+  primitive: exec
+  args:
+    cmd: [/opt/iclic-host-agent/runtime-discovery.sh]
+    timeout_sec: 5
+    parse: json
+  output_key: runtime_instances
+```
+
+The script must print an array:
+
+```json
+[
+  {
+    "productCode": "ICOSYS",
+    "componentCode": "hrm-backend",
+    "instanceKey": "prod-api-01:hrm-backend",
+    "runningVersion": "1.21.1",
+    "gitCommit": "abc1234",
+    "environment": "PROD",
+    "payload": {
+      "source": "systemd",
+      "unit": "icosys-hrm.service"
+    }
+  }
+]
+```
+
+`productCode` + `componentCode` identify the ICLIC runtime component catalog
+row. `instanceKey` should be stable across restarts. If omitted, ICLIC falls
+back to the authenticated server id plus component code. `versionSource` and
+`status` are optional; the agent defaults them to `HOST_AGENT` and `HEALTHY`.
+
 ## Security notes
 
 - `/etc/iclic-host-agent/collectors.d/` is `0750 root:iclic-agent`. Only root

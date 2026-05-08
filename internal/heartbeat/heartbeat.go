@@ -21,7 +21,7 @@ import (
 
 // AgentVersion is bumped per release; protocol-level changes also bump
 // ProtocolVersion in the payload.
-const AgentVersion = "0.2.0"
+const AgentVersion = "0.3.0"
 
 // ProtocolVersion is the heartbeat schema version. Bumped on breaking changes;
 // ICLIC accepts the last N versions per docs/protocol.md.
@@ -86,11 +86,13 @@ func (s *Sender) SendOnce(ctx context.Context) error {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("heartbeat rejected: status=%d body=%s", resp.StatusCode, string(respBody))
 	}
+	runtimeCount := s.sendRuntimeSignals(ctx, payload)
 	// INFO so journalctl shows the operator a heartbeat actually went through
 	// — DEBUG was effectively silent at the default log level. (#35)
 	slog.Info("heartbeat accepted",
 		"status", resp.StatusCode,
 		"binding_count", payload.metricCount(),
+		"runtime_signal_count", runtimeCount,
 	)
 	return nil
 }
@@ -104,6 +106,26 @@ type Payload struct {
 }
 
 func (p Payload) metricCount() int { return len(p.Metrics) }
+
+// RuntimeSignal is the agent-side shape forwarded to ICLIC's runtime
+// deployment status endpoint. Operators can produce an array of these under
+// metrics.runtime_instances via YAML bindings or legacy scripts. (#97)
+type RuntimeSignal struct {
+	RuntimeComponentID *int64         `json:"runtimeComponentId,omitempty"`
+	ProductCode        string         `json:"productCode,omitempty"`
+	ComponentCode      string         `json:"componentCode,omitempty"`
+	InstallationID     *int64         `json:"installationId,omitempty"`
+	NodeID             *int64         `json:"nodeId,omitempty"`
+	InstanceKey        string         `json:"instanceKey,omitempty"`
+	Environment        string         `json:"environment,omitempty"`
+	Status             string         `json:"status,omitempty"`
+	VersionSource      string         `json:"versionSource,omitempty"`
+	RunningVersion     string         `json:"runningVersion,omitempty"`
+	GitCommit          string         `json:"gitCommit,omitempty"`
+	BuildTime          string         `json:"buildTime,omitempty"`
+	Notes              string         `json:"notes,omitempty"`
+	Payload            map[string]any `json:"payload,omitempty"`
+}
 
 // buildPayload runs the collector pipeline and stamps in the agent-intrinsic
 // fields the operator can't redefine.
@@ -136,4 +158,68 @@ func (s *Sender) buildPayload(parent context.Context) Payload {
 		ProtocolVersion: ProtocolVersion,
 		Metrics:         metrics,
 	}
+}
+
+func (s *Sender) sendRuntimeSignals(ctx context.Context, payload Payload) int {
+	signals := runtimeSignals(payload.Metrics["runtime_instances"])
+	for _, signal := range signals {
+		if signal.VersionSource == "" {
+			signal.VersionSource = "HOST_AGENT"
+		}
+		if signal.Status == "" {
+			signal.Status = "HEALTHY"
+		}
+		if err := s.postRuntimeSignal(ctx, signal); err != nil {
+			slog.Warn("runtime signal rejected",
+				"product_code", signal.ProductCode,
+				"component_code", signal.ComponentCode,
+				"instance_key", signal.InstanceKey,
+				"err", err,
+			)
+		}
+	}
+	return len(signals)
+}
+
+func (s *Sender) postRuntimeSignal(ctx context.Context, signal RuntimeSignal) error {
+	body, err := json.Marshal(signal)
+	if err != nil {
+		return fmt.Errorf("marshal runtime signal: %w", err)
+	}
+	url := s.cfg.ICLICUrl + "/api/v1/server/runtime-instances/heartbeat"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("build runtime request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "iclic-host-agent/"+AgentVersion)
+	req.Header.Set("Authorization", "Bearer "+s.bearer)
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("post runtime signal: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))
+	}
+	return nil
+}
+
+func runtimeSignals(value any) []RuntimeSignal {
+	if value == nil {
+		return nil
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		slog.Warn("runtime_instances marshal failed", "err", err)
+		return nil
+	}
+	var signals []RuntimeSignal
+	if err := json.Unmarshal(data, &signals); err != nil {
+		slog.Warn("runtime_instances parse failed", "err", err)
+		return nil
+	}
+	return signals
 }
