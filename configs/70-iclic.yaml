@@ -4,12 +4,11 @@
 # (`SERVER_SERVLET_CONTEXT_PATH` is unset), so actuator lives at
 # `/actuator/...` directly.
 #
-# `/actuator/health` is unauthenticated by Spring Boot's default
-# management.endpoint config; `/actuator/metrics/*` requires bearer
-# auth (HTTP 401 unauthenticated). We don't want to ship a service-
-# account token in the agent inventory, so the agent only probes
-# health here. Anyone who needs the metrics can add bindings with a
-# basic_user/basic_pass or header.Authorization. (#112)
+# `/actuator/health` and `/actuator/info` are unauthenticated by Spring
+# Boot's default management.endpoints.web.exposure.include;
+# `/actuator/metrics/*` requires bearer auth (HTTP 401 unauthenticated).
+# We don't want to ship a service-account token in the agent
+# inventory, so the agent only probes health + info here. (#112)
 #
 # Drop this file on hosts that don't run ICLIC. Adjust the port if a
 # non-default Dokploy mapping is used.
@@ -21,3 +20,27 @@
     path: status
     timeout_sec: 3
   output_key: iclic_health
+
+- id: iclic_build_version
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8001/actuator/info
+    path: build.version
+    timeout_sec: 3
+  output_key: iclic_build_version
+
+- id: iclic_build_time
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8001/actuator/info
+    path: build.time
+    timeout_sec: 3
+  output_key: iclic_build_time
+
+- id: iclic_build_artifact
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8001/actuator/info
+    path: build.artifact
+    timeout_sec: 3
+  output_key: iclic_build_artifact
