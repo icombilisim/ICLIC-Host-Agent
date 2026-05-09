@@ -5,6 +5,13 @@
 #
 # All probes hit loopback. If any of these run on a different host,
 # split the file and only keep the bindings that match the local stack.
+#
+# Postgres runs in a Dokploy-managed container — there are usually
+# multiple Postgres containers on the host (dokploy-postgres,
+# matomo-postgres, …). We don't shell into a specific one because
+# the right name varies per deployment, so liveness reduces to a TCP
+# probe on 5432; for per-database health add a binding pointing at the
+# right `docker exec <name> pg_isready -U <user>` for your stack. (#112)
 
 # ─── Nexus (default port 8081) ──────────────────────────────────────
 - id: nexus_port_open
@@ -66,21 +73,3 @@
   primitive: tcp.connect
   args: { host: 127.0.0.1, port: 5432, timeout_sec: 2 }
   output_key: postgres_port_open
-
-# `pg_isready` exits 0 only when the server accepts connections —
-# different from a TCP probe, which passes during recovery/start-up.
-- id: postgres_ready
-  primitive: exec
-  args:
-    cmd: [/usr/bin/pg_isready, -h, 127.0.0.1, -p, "5432"]
-    timeout_sec: 3
-    parse: trimmed
-  output_key: postgres_ready
-
-- id: postgres_version
-  primitive: exec
-  args:
-    cmd: [/usr/bin/psql, --version]
-    timeout_sec: 3
-    parse: trimmed
-  output_key: postgres_version

@@ -21,7 +21,7 @@ import (
 
 // AgentVersion is bumped per release; protocol-level changes also bump
 // ProtocolVersion in the payload.
-const AgentVersion = "0.3.0"
+const AgentVersion = "0.3.1"
 
 // ProtocolVersion is the heartbeat schema version. Bumped on breaking changes;
 // ICLIC accepts the last N versions per docs/protocol.md.

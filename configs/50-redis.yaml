@@ -1,26 +1,15 @@
-# Redis liveness and version. `redis-server --version` works without
-# the daemon being up — it just inspects the installed binary. The PING
-# binding is the only one that touches the running instance, and we
-# rely on local socket auth (no password in YAML).
+# Redis liveness and version. ICOSYS runs Redis inside a container
+# named `icosys-redis` and the port is NOT published to the host —
+# every probe goes via `docker exec` against the container. (#112)
 #
-# Debian/Ubuntu unit name is `redis-server.service`; on RHEL/Rocky it
-# becomes `redis.service`. Adjust if needed.
-
-- id: redis_port_open
-  primitive: tcp.connect
-  args: { host: 127.0.0.1, port: 6379, timeout_sec: 2 }
-  output_key: redis_port_open
-
-- id: redis_running
-  primitive: systemctl.is_active
-  args: { unit: redis-server.service }
-  output_key: redis_running
+# On a host-installed Redis (no docker), swap the docker exec calls
+# for `/usr/bin/redis-server --version` and `/usr/bin/redis-cli`.
 
 - id: redis_version
   primitive: exec
   args:
-    cmd: [/usr/bin/redis-server, --version]
-    timeout_sec: 3
+    cmd: [docker, exec, icosys-redis, redis-server, --version]
+    timeout_sec: 5
     parse: trimmed
   output_key: redis_version
 
@@ -29,7 +18,7 @@
 - id: redis_ping
   primitive: exec
   args:
-    cmd: [/usr/bin/redis-cli, -h, 127.0.0.1, -p, "6379", PING]
-    timeout_sec: 3
+    cmd: [docker, exec, icosys-redis, redis-cli, PING]
+    timeout_sec: 5
     parse: trimmed
   output_key: redis_ping

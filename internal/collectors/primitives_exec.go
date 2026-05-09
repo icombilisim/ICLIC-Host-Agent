@@ -21,6 +21,7 @@ import (
 //	cmd:         []string         required — argv-style, no shell expansion
 //	timeout_sec: number           optional, default 5, capped at 30
 //	parse:       "raw" (default) | "trimmed" | "int" | "float" | "json"
+//	path:        string           optional — dotted JSON path, only when parse=json
 //
 // Stdout-only by design — stderr is dropped to keep the metric value clean.
 // A non-zero exit is treated as an error and the metric is omitted from the
@@ -72,6 +73,9 @@ func execPrimitive(ctx context.Context, args map[string]any) (any, error) {
 		var value any
 		if err := json.Unmarshal([]byte(s), &value); err != nil {
 			return nil, fmt.Errorf("parse json: %w", err)
+		}
+		if path := argString(args, "path", ""); path != "" {
+			return jsonPath(value, path), nil
 		}
 		return value, nil
 	default:

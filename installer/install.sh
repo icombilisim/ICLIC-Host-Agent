@@ -133,6 +133,15 @@ if ! id -u "${SERVICE_USER}" >/dev/null 2>&1; then
   useradd --system --no-create-home --shell /usr/sbin/nologin "${SERVICE_USER}"
 fi
 
+# docker.containers/docker.stats primitives, and the docker-exec-based
+# probes in the icosys/mysql/redis/nginx profiles, all need the agent
+# to read /var/run/docker.sock — which is owned by root:docker on
+# every Docker install. Add the agent to the docker group when the
+# group exists (it won't on hosts without Docker, which is fine). (#112)
+if getent group docker >/dev/null 2>&1; then
+  usermod -aG docker "${SERVICE_USER}"
+fi
+
 echo ">> Ensuring directories"
 install -d -o root -g root              -m 0755 "${INSTALL_DIR}"
 install -d -o root -g root              -m 0755 "${INSTALL_DIR}/bin"
