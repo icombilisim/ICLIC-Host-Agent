@@ -24,3 +24,7 @@ state.json
 # Coverage
 *.out
 coverage.txt
+
+# Operator inventory — paths/IPs/users are deployment-specific.
+installer/inventory
+installer/inventory.local

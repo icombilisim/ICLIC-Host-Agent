@@ -1,0 +1,30 @@
+# ICLIC Host Agent inventory — copy to inventory.local and fill in.
+# `inventory.local` is gitignored so credentials/IPs stay out of the repo.
+#
+# Format (one host per line):
+#   host:profiles[:user[:port]]
+#
+# Profiles available:
+#   host        Linux host metrics (cpu, mem, disk, uptime, os) — recommended on all hosts
+#   docker      Docker container summary + per-container stats
+#   systemd     systemd unit resource usage (cgroup-driven)
+#   icosys      ICOSYS Spring Boot actuator (icglb/bpm/dms/hrm/asm/wfl on 8010-8060)
+#   mysql       MySQL liveness + version + port
+#   redis       Redis liveness + ping + version
+#   nginx       nginx liveness + version + 80/443 ports
+#   iclic       ICLIC Spring Boot actuator (port 8001)
+#   devops      Nexus + SonarQube + Dokploy + Postgres
+#
+# Defaults: user=root, port=22.
+
+# ICOSYS test environment
+test.example.com:host,docker,systemd,icosys,mysql,redis,nginx
+
+# ICOSYS prod environment
+prod.example.com:host,docker,systemd,icosys,mysql,redis,nginx
+
+# DevOps host (Nexus + SonarQube + Dokploy + Postgres)
+devops.example.com:host,docker,systemd,devops:icadmin
+
+# ICLIC prod (host that runs the licence-authority Spring Boot)
+iclic.example.com:host,docker,systemd,iclic

@@ -1,18 +1,17 @@
-# ICOSYS app metrics via Spring Boot Actuator. Only meaningful on hosts
-# that run an ICOSYS service (icglb, icbpm, icdms, ichrm, icasm, icwfl).
-# Drop this file on hosts that don't, or trim it to the services that
-# actually live there.
+# ICOSYS app metrics via Spring Boot Actuator. One block per service —
+# trim to the services that actually live on a given host (e.g. on a
+# single-tenant deployment that only runs icglb, delete the others).
 #
-# Endpoints assume the standard ICOSYS context-path + actuator base
-# (`/<svc>/services/actuator/...`) and trust that the local agent can hit
-# the loopback API. If actuator is auth-protected on a given host, add
-# basic_user/basic_pass to each binding's args.
+# Endpoints follow the standard ICOSYS context-path + actuator base
+# (`/<svc>/services/actuator/...`). Loopback only — the agent never
+# crosses the network for these. If actuator is auth-protected on a
+# given host, add basic_user/basic_pass to each binding's args.
 #
 # Each `metrics/<id>` shape is `{ measurements: [{statistic, value}, …] }` —
 # we pull `measurements.0.value` which is the COUNT/VALUE statistic for
 # the canonical Spring metrics. health is a single string.
 
-# ICGLB (core)
+# ─── ICGLB (core, port 8010) ────────────────────────────────────────
 - id: icglb_health
   primitive: http.get_json
   args:
@@ -52,3 +51,208 @@
     path: measurements.0.value
     timeout_sec: 3
   output_key: icglb_http_requests_total
+
+# ─── ICBPM (port 8020) ──────────────────────────────────────────────
+- id: icbpm_health
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8020/icbpm/services/actuator/health
+    path: status
+    timeout_sec: 3
+  output_key: icbpm_health
+
+- id: icbpm_uptime_sec
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8020/icbpm/services/actuator/metrics/process.uptime
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icbpm_uptime_sec
+
+- id: icbpm_heap_used
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8020/icbpm/services/actuator/metrics/jvm.memory.used
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icbpm_heap_used_bytes
+
+- id: icbpm_threads_live
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8020/icbpm/services/actuator/metrics/jvm.threads.live
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icbpm_threads_live
+
+- id: icbpm_http_requests
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8020/icbpm/services/actuator/metrics/http.server.requests
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icbpm_http_requests_total
+
+# ─── ICDMS (port 8030) ──────────────────────────────────────────────
+- id: icdms_health
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8030/icdms/services/actuator/health
+    path: status
+    timeout_sec: 3
+  output_key: icdms_health
+
+- id: icdms_uptime_sec
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8030/icdms/services/actuator/metrics/process.uptime
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icdms_uptime_sec
+
+- id: icdms_heap_used
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8030/icdms/services/actuator/metrics/jvm.memory.used
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icdms_heap_used_bytes
+
+- id: icdms_threads_live
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8030/icdms/services/actuator/metrics/jvm.threads.live
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icdms_threads_live
+
+- id: icdms_http_requests
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8030/icdms/services/actuator/metrics/http.server.requests
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icdms_http_requests_total
+
+# ─── ICHRM (port 8040) ──────────────────────────────────────────────
+- id: ichrm_health
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8040/ichrm/services/actuator/health
+    path: status
+    timeout_sec: 3
+  output_key: ichrm_health
+
+- id: ichrm_uptime_sec
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8040/ichrm/services/actuator/metrics/process.uptime
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: ichrm_uptime_sec
+
+- id: ichrm_heap_used
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8040/ichrm/services/actuator/metrics/jvm.memory.used
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: ichrm_heap_used_bytes
+
+- id: ichrm_threads_live
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8040/ichrm/services/actuator/metrics/jvm.threads.live
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: ichrm_threads_live
+
+- id: ichrm_http_requests
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8040/ichrm/services/actuator/metrics/http.server.requests
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: ichrm_http_requests_total
+
+# ─── ICASM (port 8050) ──────────────────────────────────────────────
+- id: icasm_health
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8050/icasm/services/actuator/health
+    path: status
+    timeout_sec: 3
+  output_key: icasm_health
+
+- id: icasm_uptime_sec
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8050/icasm/services/actuator/metrics/process.uptime
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icasm_uptime_sec
+
+- id: icasm_heap_used
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8050/icasm/services/actuator/metrics/jvm.memory.used
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icasm_heap_used_bytes
+
+- id: icasm_threads_live
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8050/icasm/services/actuator/metrics/jvm.threads.live
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icasm_threads_live
+
+- id: icasm_http_requests
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8050/icasm/services/actuator/metrics/http.server.requests
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icasm_http_requests_total
+
+# ─── ICWFL (port 8060) ──────────────────────────────────────────────
+- id: icwfl_health
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8060/icwfl/services/actuator/health
+    path: status
+    timeout_sec: 3
+  output_key: icwfl_health
+
+- id: icwfl_uptime_sec
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8060/icwfl/services/actuator/metrics/process.uptime
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icwfl_uptime_sec
+
+- id: icwfl_heap_used
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8060/icwfl/services/actuator/metrics/jvm.memory.used
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icwfl_heap_used_bytes
+
+- id: icwfl_threads_live
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8060/icwfl/services/actuator/metrics/jvm.threads.live
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icwfl_threads_live
+
+- id: icwfl_http_requests
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8060/icwfl/services/actuator/metrics/http.server.requests
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: icwfl_http_requests_total

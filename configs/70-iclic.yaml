@@ -1,0 +1,48 @@
+# ICLIC Spring Boot actuator. ICLIC runs in a Docker container behind
+# Dokploy on the licence-authority host — the agent reaches it via the
+# published port on loopback. Prod has no servlet context-path
+# (`SERVER_SERVLET_CONTEXT_PATH` is unset), so actuator lives at
+# `/actuator/...` directly.
+#
+# Drop this file on hosts that don't run ICLIC. Adjust the port if a
+# non-default Dokploy mapping is used.
+
+- id: iclic_health
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8001/actuator/health
+    path: status
+    timeout_sec: 3
+  output_key: iclic_health
+
+- id: iclic_uptime_sec
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8001/actuator/metrics/process.uptime
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: iclic_uptime_sec
+
+- id: iclic_heap_used
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8001/actuator/metrics/jvm.memory.used
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: iclic_heap_used_bytes
+
+- id: iclic_threads_live
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8001/actuator/metrics/jvm.threads.live
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: iclic_threads_live
+
+- id: iclic_http_requests
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8001/actuator/metrics/http.server.requests
+    path: measurements.0.value
+    timeout_sec: 3
+  output_key: iclic_http_requests_total

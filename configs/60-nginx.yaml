@@ -1,0 +1,27 @@
+# nginx liveness and version. `nginx -v` writes to stderr — the exec
+# primitive captures both streams, so the version line still lands in
+# the trimmed output. Drop this file on hosts that run nginx inside a
+# container instead (use the docker.containers preset there).
+
+- id: nginx_running
+  primitive: systemctl.is_active
+  args: { unit: nginx.service }
+  output_key: nginx_running
+
+- id: nginx_port_80_open
+  primitive: tcp.connect
+  args: { host: 127.0.0.1, port: 80, timeout_sec: 2 }
+  output_key: nginx_port_80_open
+
+- id: nginx_port_443_open
+  primitive: tcp.connect
+  args: { host: 127.0.0.1, port: 443, timeout_sec: 2 }
+  output_key: nginx_port_443_open
+
+- id: nginx_version
+  primitive: exec
+  args:
+    cmd: [/usr/sbin/nginx, -v]
+    timeout_sec: 3
+    parse: trimmed
+  output_key: nginx_version

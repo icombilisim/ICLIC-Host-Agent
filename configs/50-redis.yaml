@@ -1,0 +1,35 @@
+# Redis liveness and version. `redis-server --version` works without
+# the daemon being up — it just inspects the installed binary. The PING
+# binding is the only one that touches the running instance, and we
+# rely on local socket auth (no password in YAML).
+#
+# Debian/Ubuntu unit name is `redis-server.service`; on RHEL/Rocky it
+# becomes `redis.service`. Adjust if needed.
+
+- id: redis_port_open
+  primitive: tcp.connect
+  args: { host: 127.0.0.1, port: 6379, timeout_sec: 2 }
+  output_key: redis_port_open
+
+- id: redis_running
+  primitive: systemctl.is_active
+  args: { unit: redis-server.service }
+  output_key: redis_running
+
+- id: redis_version
+  primitive: exec
+  args:
+    cmd: [/usr/bin/redis-server, --version]
+    timeout_sec: 3
+    parse: trimmed
+  output_key: redis_version
+
+# Functional check — `PONG` only comes back if the daemon is accepting
+# connections AND not in `LOADING`/`MASTERDOWN`/auth-fail state.
+- id: redis_ping
+  primitive: exec
+  args:
+    cmd: [/usr/bin/redis-cli, -h, 127.0.0.1, -p, "6379", PING]
+    timeout_sec: 3
+    parse: trimmed
+  output_key: redis_ping

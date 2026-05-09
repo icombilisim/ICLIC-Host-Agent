@@ -1,0 +1,86 @@
+# DevOps stack visibility — install on the host that runs Nexus,
+# SonarQube, Dokploy, and the shared Postgres they sit on top of.
+# Matomo is intentionally absent: it lives in a Docker container and
+# the docker.containers preset already covers liveness + image tag.
+#
+# All probes hit loopback. If any of these run on a different host,
+# split the file and only keep the bindings that match the local stack.
+
+# ─── Nexus (default port 8081) ──────────────────────────────────────
+- id: nexus_port_open
+  primitive: tcp.connect
+  args: { host: 127.0.0.1, port: 8081, timeout_sec: 2 }
+  output_key: nexus_port_open
+
+# Nexus exposes a public health endpoint that returns 200 with no body
+# while the indexer is healthy. `expect: ok` reduces this to a bool.
+- id: nexus_status_ok
+  primitive: http.get
+  args:
+    url: http://127.0.0.1:8081/service/rest/v1/status
+    timeout_sec: 5
+    expect: ok
+  output_key: nexus_status_ok
+
+# ─── SonarQube (default port 9000) ──────────────────────────────────
+- id: sonarqube_port_open
+  primitive: tcp.connect
+  args: { host: 127.0.0.1, port: 9000, timeout_sec: 2 }
+  output_key: sonarqube_port_open
+
+# /api/system/status returns `{ id, version, status }`. Pull both
+# fields — `status` is the one-line UP/STARTING/DOWN; `version` lets
+# us spot a stale instance from the dashboard.
+- id: sonarqube_status
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:9000/api/system/status
+    path: status
+    timeout_sec: 5
+  output_key: sonarqube_status
+
+- id: sonarqube_version
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:9000/api/system/status
+    path: version
+    timeout_sec: 5
+  output_key: sonarqube_version
+
+# ─── Dokploy (control plane, port 3001) ────────────────────────────
+- id: dokploy_port_open
+  primitive: tcp.connect
+  args: { host: 127.0.0.1, port: 3001, timeout_sec: 2 }
+  output_key: dokploy_port_open
+
+- id: dokploy_status_ok
+  primitive: http.get
+  args:
+    url: http://127.0.0.1:3001
+    timeout_sec: 3
+    expect: ok
+  output_key: dokploy_status_ok
+
+# ─── Postgres (default port 5432) ──────────────────────────────────
+- id: postgres_port_open
+  primitive: tcp.connect
+  args: { host: 127.0.0.1, port: 5432, timeout_sec: 2 }
+  output_key: postgres_port_open
+
+# `pg_isready` exits 0 only when the server accepts connections —
+# different from a TCP probe, which passes during recovery/start-up.
+- id: postgres_ready
+  primitive: exec
+  args:
+    cmd: [/usr/bin/pg_isready, -h, 127.0.0.1, -p, "5432"]
+    timeout_sec: 3
+    parse: trimmed
+  output_key: postgres_ready
+
+- id: postgres_version
+  primitive: exec
+  args:
+    cmd: [/usr/bin/psql, --version]
+    timeout_sec: 3
+    parse: trimmed
+  output_key: postgres_version

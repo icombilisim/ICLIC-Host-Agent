@@ -1,0 +1,27 @@
+# MySQL liveness and version. Drop on hosts that don't run MySQL —
+# default Debian/Ubuntu unit is `mysql.service`, RHEL/Rocky calls it
+# `mysqld.service`. Adjust the systemctl binding to match the host.
+#
+# `mysqld --version` reads the binary and reports the server version
+# without auth — so we get the version even when credentials aren't
+# available to the agent. Operators who want a "ping with auth" check
+# (replication health, slow-query stats) add an `exec` binding with
+# `mysql --defaults-file=...` pointing at a read-only client cnf.
+
+- id: mysql_port_open
+  primitive: tcp.connect
+  args: { host: 127.0.0.1, port: 3306, timeout_sec: 2 }
+  output_key: mysql_port_open
+
+- id: mysql_running
+  primitive: systemctl.is_active
+  args: { unit: mysql.service }
+  output_key: mysql_running
+
+- id: mysql_version
+  primitive: exec
+  args:
+    cmd: [/usr/sbin/mysqld, --version]
+    timeout_sec: 3
+    parse: trimmed
+  output_key: mysql_version
