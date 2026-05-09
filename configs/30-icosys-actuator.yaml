@@ -6,9 +6,12 @@
 # to the docker group at install time so /var/run/docker.sock is
 # readable. (#112)
 #
-# Image requirement: each container must have `curl` available on PATH.
-# Stock eclipse-temurin doesn't ship curl; ICOSYS Dockerfiles install it.
-# If curl is missing the binding fails silently (no metric in heartbeat).
+# Image requirement: each container must have `wget` available on PATH.
+# eclipse-temurin's Ubuntu base ships wget by default — switching to
+# wget instead of curl was a v0.3.2 fix after v0.3.1 produced 30
+# `docker: exit status 127` warnings on every host. (#112)
+# `wget -qO-` writes the body to stdout silently; non-2xx responses
+# exit non-zero, which propagates as a binding failure.
 #
 # Each `metrics/<id>` shape is `{ measurements: [{statistic, value}, …] }` —
 # we pull `measurements.0.value` which is the COUNT/VALUE statistic for
@@ -21,7 +24,7 @@
 - id: icglb_health
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icglb, curl, -fsS, http://127.0.0.1:8010/icglb/services/actuator/health]
+    cmd: [docker, exec, icosys-icglb, wget, -qO-, http://127.0.0.1:8010/icglb/services/actuator/health]
     parse: json
     path: status
     timeout_sec: 5
@@ -30,7 +33,7 @@
 - id: icglb_uptime_sec
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icglb, curl, -fsS, http://127.0.0.1:8010/icglb/services/actuator/metrics/process.uptime]
+    cmd: [docker, exec, icosys-icglb, wget, -qO-, http://127.0.0.1:8010/icglb/services/actuator/metrics/process.uptime]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -39,7 +42,7 @@
 - id: icglb_heap_used
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icglb, curl, -fsS, http://127.0.0.1:8010/icglb/services/actuator/metrics/jvm.memory.used]
+    cmd: [docker, exec, icosys-icglb, wget, -qO-, http://127.0.0.1:8010/icglb/services/actuator/metrics/jvm.memory.used]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -48,7 +51,7 @@
 - id: icglb_threads_live
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icglb, curl, -fsS, http://127.0.0.1:8010/icglb/services/actuator/metrics/jvm.threads.live]
+    cmd: [docker, exec, icosys-icglb, wget, -qO-, http://127.0.0.1:8010/icglb/services/actuator/metrics/jvm.threads.live]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -57,7 +60,7 @@
 - id: icglb_http_requests
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icglb, curl, -fsS, http://127.0.0.1:8010/icglb/services/actuator/metrics/http.server.requests]
+    cmd: [docker, exec, icosys-icglb, wget, -qO-, http://127.0.0.1:8010/icglb/services/actuator/metrics/http.server.requests]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -67,7 +70,7 @@
 - id: icbpm_health
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icbpm, curl, -fsS, http://127.0.0.1:8020/icbpm/services/actuator/health]
+    cmd: [docker, exec, icosys-icbpm, wget, -qO-, http://127.0.0.1:8020/icbpm/services/actuator/health]
     parse: json
     path: status
     timeout_sec: 5
@@ -76,7 +79,7 @@
 - id: icbpm_uptime_sec
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icbpm, curl, -fsS, http://127.0.0.1:8020/icbpm/services/actuator/metrics/process.uptime]
+    cmd: [docker, exec, icosys-icbpm, wget, -qO-, http://127.0.0.1:8020/icbpm/services/actuator/metrics/process.uptime]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -85,7 +88,7 @@
 - id: icbpm_heap_used
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icbpm, curl, -fsS, http://127.0.0.1:8020/icbpm/services/actuator/metrics/jvm.memory.used]
+    cmd: [docker, exec, icosys-icbpm, wget, -qO-, http://127.0.0.1:8020/icbpm/services/actuator/metrics/jvm.memory.used]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -94,7 +97,7 @@
 - id: icbpm_threads_live
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icbpm, curl, -fsS, http://127.0.0.1:8020/icbpm/services/actuator/metrics/jvm.threads.live]
+    cmd: [docker, exec, icosys-icbpm, wget, -qO-, http://127.0.0.1:8020/icbpm/services/actuator/metrics/jvm.threads.live]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -103,7 +106,7 @@
 - id: icbpm_http_requests
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icbpm, curl, -fsS, http://127.0.0.1:8020/icbpm/services/actuator/metrics/http.server.requests]
+    cmd: [docker, exec, icosys-icbpm, wget, -qO-, http://127.0.0.1:8020/icbpm/services/actuator/metrics/http.server.requests]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -113,7 +116,7 @@
 - id: icdms_health
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icdms, curl, -fsS, http://127.0.0.1:8030/icdms/services/actuator/health]
+    cmd: [docker, exec, icosys-icdms, wget, -qO-, http://127.0.0.1:8030/icdms/services/actuator/health]
     parse: json
     path: status
     timeout_sec: 5
@@ -122,7 +125,7 @@
 - id: icdms_uptime_sec
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icdms, curl, -fsS, http://127.0.0.1:8030/icdms/services/actuator/metrics/process.uptime]
+    cmd: [docker, exec, icosys-icdms, wget, -qO-, http://127.0.0.1:8030/icdms/services/actuator/metrics/process.uptime]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -131,7 +134,7 @@
 - id: icdms_heap_used
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icdms, curl, -fsS, http://127.0.0.1:8030/icdms/services/actuator/metrics/jvm.memory.used]
+    cmd: [docker, exec, icosys-icdms, wget, -qO-, http://127.0.0.1:8030/icdms/services/actuator/metrics/jvm.memory.used]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -140,7 +143,7 @@
 - id: icdms_threads_live
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icdms, curl, -fsS, http://127.0.0.1:8030/icdms/services/actuator/metrics/jvm.threads.live]
+    cmd: [docker, exec, icosys-icdms, wget, -qO-, http://127.0.0.1:8030/icdms/services/actuator/metrics/jvm.threads.live]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -149,7 +152,7 @@
 - id: icdms_http_requests
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icdms, curl, -fsS, http://127.0.0.1:8030/icdms/services/actuator/metrics/http.server.requests]
+    cmd: [docker, exec, icosys-icdms, wget, -qO-, http://127.0.0.1:8030/icdms/services/actuator/metrics/http.server.requests]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -159,7 +162,7 @@
 - id: ichrm_health
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-ichrm, curl, -fsS, http://127.0.0.1:8040/ichrm/services/actuator/health]
+    cmd: [docker, exec, icosys-ichrm, wget, -qO-, http://127.0.0.1:8040/ichrm/services/actuator/health]
     parse: json
     path: status
     timeout_sec: 5
@@ -168,7 +171,7 @@
 - id: ichrm_uptime_sec
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-ichrm, curl, -fsS, http://127.0.0.1:8040/ichrm/services/actuator/metrics/process.uptime]
+    cmd: [docker, exec, icosys-ichrm, wget, -qO-, http://127.0.0.1:8040/ichrm/services/actuator/metrics/process.uptime]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -177,7 +180,7 @@
 - id: ichrm_heap_used
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-ichrm, curl, -fsS, http://127.0.0.1:8040/ichrm/services/actuator/metrics/jvm.memory.used]
+    cmd: [docker, exec, icosys-ichrm, wget, -qO-, http://127.0.0.1:8040/ichrm/services/actuator/metrics/jvm.memory.used]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -186,7 +189,7 @@
 - id: ichrm_threads_live
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-ichrm, curl, -fsS, http://127.0.0.1:8040/ichrm/services/actuator/metrics/jvm.threads.live]
+    cmd: [docker, exec, icosys-ichrm, wget, -qO-, http://127.0.0.1:8040/ichrm/services/actuator/metrics/jvm.threads.live]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -195,7 +198,7 @@
 - id: ichrm_http_requests
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-ichrm, curl, -fsS, http://127.0.0.1:8040/ichrm/services/actuator/metrics/http.server.requests]
+    cmd: [docker, exec, icosys-ichrm, wget, -qO-, http://127.0.0.1:8040/ichrm/services/actuator/metrics/http.server.requests]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -205,7 +208,7 @@
 - id: icasm_health
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icasm, curl, -fsS, http://127.0.0.1:8050/icasm/services/actuator/health]
+    cmd: [docker, exec, icosys-icasm, wget, -qO-, http://127.0.0.1:8050/icasm/services/actuator/health]
     parse: json
     path: status
     timeout_sec: 5
@@ -214,7 +217,7 @@
 - id: icasm_uptime_sec
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icasm, curl, -fsS, http://127.0.0.1:8050/icasm/services/actuator/metrics/process.uptime]
+    cmd: [docker, exec, icosys-icasm, wget, -qO-, http://127.0.0.1:8050/icasm/services/actuator/metrics/process.uptime]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -223,7 +226,7 @@
 - id: icasm_heap_used
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icasm, curl, -fsS, http://127.0.0.1:8050/icasm/services/actuator/metrics/jvm.memory.used]
+    cmd: [docker, exec, icosys-icasm, wget, -qO-, http://127.0.0.1:8050/icasm/services/actuator/metrics/jvm.memory.used]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -232,7 +235,7 @@
 - id: icasm_threads_live
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icasm, curl, -fsS, http://127.0.0.1:8050/icasm/services/actuator/metrics/jvm.threads.live]
+    cmd: [docker, exec, icosys-icasm, wget, -qO-, http://127.0.0.1:8050/icasm/services/actuator/metrics/jvm.threads.live]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -241,7 +244,7 @@
 - id: icasm_http_requests
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icasm, curl, -fsS, http://127.0.0.1:8050/icasm/services/actuator/metrics/http.server.requests]
+    cmd: [docker, exec, icosys-icasm, wget, -qO-, http://127.0.0.1:8050/icasm/services/actuator/metrics/http.server.requests]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -251,7 +254,7 @@
 - id: icwfl_health
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icwfl, curl, -fsS, http://127.0.0.1:8060/icwfl/services/actuator/health]
+    cmd: [docker, exec, icosys-icwfl, wget, -qO-, http://127.0.0.1:8060/icwfl/services/actuator/health]
     parse: json
     path: status
     timeout_sec: 5
@@ -260,7 +263,7 @@
 - id: icwfl_uptime_sec
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icwfl, curl, -fsS, http://127.0.0.1:8060/icwfl/services/actuator/metrics/process.uptime]
+    cmd: [docker, exec, icosys-icwfl, wget, -qO-, http://127.0.0.1:8060/icwfl/services/actuator/metrics/process.uptime]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -269,7 +272,7 @@
 - id: icwfl_heap_used
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icwfl, curl, -fsS, http://127.0.0.1:8060/icwfl/services/actuator/metrics/jvm.memory.used]
+    cmd: [docker, exec, icosys-icwfl, wget, -qO-, http://127.0.0.1:8060/icwfl/services/actuator/metrics/jvm.memory.used]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -278,7 +281,7 @@
 - id: icwfl_threads_live
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icwfl, curl, -fsS, http://127.0.0.1:8060/icwfl/services/actuator/metrics/jvm.threads.live]
+    cmd: [docker, exec, icosys-icwfl, wget, -qO-, http://127.0.0.1:8060/icwfl/services/actuator/metrics/jvm.threads.live]
     parse: json
     path: measurements.0.value
     timeout_sec: 5
@@ -287,7 +290,7 @@
 - id: icwfl_http_requests
   primitive: exec
   args:
-    cmd: [docker, exec, icosys-icwfl, curl, -fsS, http://127.0.0.1:8060/icwfl/services/actuator/metrics/http.server.requests]
+    cmd: [docker, exec, icosys-icwfl, wget, -qO-, http://127.0.0.1:8060/icwfl/services/actuator/metrics/http.server.requests]
     parse: json
     path: measurements.0.value
     timeout_sec: 5

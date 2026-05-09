@@ -2,8 +2,15 @@
 # named `icosys-redis` and the port is NOT published to the host —
 # every probe goes via `docker exec` against the container. (#112)
 #
+# `redis-cli PING` requires auth on ICOSYS (NOAUTH error otherwise) and
+# we don't want to ship the Redis password in the agent inventory, so
+# liveness reduces to "container running" (covered by the `docker`
+# profile) plus the `redis-server --version` probe below — both
+# answer "is the daemon installed and reachable" without auth. v0.3.2
+# dropped the PING binding because of this. (#112)
+#
 # On a host-installed Redis (no docker), swap the docker exec calls
-# for `/usr/bin/redis-server --version` and `/usr/bin/redis-cli`.
+# for `/usr/bin/redis-server --version`.
 
 - id: redis_version
   primitive: exec
@@ -12,13 +19,3 @@
     timeout_sec: 5
     parse: trimmed
   output_key: redis_version
-
-# Functional check — `PONG` only comes back if the daemon is accepting
-# connections AND not in `LOADING`/`MASTERDOWN`/auth-fail state.
-- id: redis_ping
-  primitive: exec
-  args:
-    cmd: [docker, exec, icosys-redis, redis-cli, PING]
-    timeout_sec: 5
-    parse: trimmed
-  output_key: redis_ping
