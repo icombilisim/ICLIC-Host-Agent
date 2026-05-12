@@ -25,19 +25,58 @@ const (
 	dockerDefaultTimeout = 4 * time.Second
 )
 
-// dockerClient builds an http.Client whose transport dials a Unix socket.
-// We don't reuse it across primitives — the cost is a single Dial per tick
-// and the agent's collector model expects each binding to be independent.
-func dockerClient(socket string, timeout time.Duration) *http.Client {
-	return &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				var d net.Dialer
-				return d.DialContext(ctx, "unix", socket)
-			},
-		},
+// sharedDockerClients caches one *http.Client per socket path for the agent's
+// lifetime. The previous implementation built a fresh client+Transport on
+// every call, never released them, and on a 19-container host accumulated
+// ~60 orphan Transports per heartbeat tick — each carrying idle-conn maps and
+// keep-alive goroutines that the GC only reclaims after full sweeps. Nine
+// days of uptime translated to ~4 GB resident. (#2)
+var (
+	sharedDockerClientsMu sync.RWMutex
+	sharedDockerClients   = make(map[string]*http.Client)
+)
+
+// dockerClientFor returns a process-lifetime client for the given socket. The
+// per-request timeout is enforced via the request context, not the client, so
+// one shared client can serve requests with different budgets.
+func dockerClientFor(socket string) *http.Client {
+	sharedDockerClientsMu.RLock()
+	c, ok := sharedDockerClients[socket]
+	sharedDockerClientsMu.RUnlock()
+	if ok {
+		return c
 	}
+	sharedDockerClientsMu.Lock()
+	defer sharedDockerClientsMu.Unlock()
+	if c, ok := sharedDockerClients[socket]; ok {
+		return c
+	}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", socket)
+		},
+		// One socket peer (dockerd), so a small idle pool is enough. Keep
+		// IdleConnTimeout above the heartbeat interval so connections survive
+		// between ticks — that's the whole point of the shared client.
+		MaxIdleConns:          8,
+		MaxIdleConnsPerHost:   8,
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	c = &http.Client{Transport: transport}
+	sharedDockerClients[socket] = c
+	return c
+}
+
+// drainAndClose ensures the HTTP connection returns to the pool even if the
+// caller stopped reading early (e.g. json.Decode hit a syntax error halfway
+// through). Without this, a partial read pins the connection and the next
+// request has to dial a fresh socket — defeating the shared-client win.
+func drainAndClose(body io.ReadCloser) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(body, 1<<20))
+	_ = body.Close()
 }
 
 func dockerGet(ctx context.Context, socket, path string, timeout time.Duration, out any) error {
@@ -47,11 +86,11 @@ func dockerGet(ctx context.Context, socket, path string, timeout time.Duration, 
 	if err != nil {
 		return err
 	}
-	resp, err := dockerClient(socket, timeout).Do(req)
+	resp, err := dockerClientFor(socket).Do(req)
 	if err != nil {
 		return fmt.Errorf("docker socket %s: %w", socket, err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("docker %s: HTTP %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))

@@ -123,7 +123,7 @@ more (or remove some) without an agent code change.
 
 ```json
 {
-  "agentVersion": "0.3.0",
+  "agentVersion": "0.4.0",
   "protocolVersion": 1,
   "metrics": {
     "reported_at": "2026-04-30T12:34:56Z",

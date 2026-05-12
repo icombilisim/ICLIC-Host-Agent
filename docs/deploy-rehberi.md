@@ -474,6 +474,81 @@ ls /etc/iclic-host-agent/collectors.d/
 | `/etc/iclic-host-agent/collectors.d/` | Aktif YAML profilleri |
 | `/var/lib/iclic-host-agent/state.json` | Agent state (heartbeat sequence vs) |
 | `/etc/systemd/system/iclic-host-agent.service` | systemd unit |
+| `/etc/systemd/system/iclic-host-agent.service.d/memory.conf` | Operator drop-in: cgroup bellek tavanı (aşağıya bak) |
+
+---
+
+## 13. Bellek Kontrolü ve Teşhis (v0.4.0+)
+
+v0.3.x agent uzun uptime'larda yavaşça bellek sızdırıyordu (devops sunucu
+2026-05-12'de 9 günlük çalışmadan sonra 4 GB RSS'e ulaştı). v0.4.0
+paylaşılan `http.Transport`'a geçti + `GOMEMLIMIT` default'u + loopback pprof
+ekledi. Yine de defansif iki katman koymak istiyoruz:
+
+### a) Go runtime soft cap
+
+Agent açılırken `debug.SetMemoryLimit(384 MB)` çağırıyor — Go GC bu sınıra
+yaklaştıkça agresifleşir, sızıntı varsa hızlı GC kazanır. Operator
+override etmek isterse:
+
+```bash
+# /etc/systemd/system/iclic-host-agent.service.d/env.conf
+[Service]
+Environment="GOMEMLIMIT=512MiB"
+```
+
+`GOMEMLIMIT=-1` runtime kapağını tamamen kaldırır (önerilmez).
+
+### b) systemd cgroup hard cap
+
+Soft cap delinmesin diye sistem seviyesinde bir koruma ekleyin —
+`MemoryMax` aşıldığında cgroup OOM-kill devreye girer, systemd unit'i
+otomatik restart eder. Tüm host'larda kurmanızı öneririz:
+
+```bash
+sudo mkdir -p /etc/systemd/system/iclic-host-agent.service.d
+sudo tee /etc/systemd/system/iclic-host-agent.service.d/memory.conf >/dev/null <<'EOF'
+[Service]
+MemoryHigh=384M
+MemoryMax=512M
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart iclic-host-agent
+```
+
+Doğrulama:
+
+```bash
+systemctl show iclic-host-agent -p MemoryHigh -p MemoryMax
+# MemoryHigh=402653184
+# MemoryMax=536870912
+```
+
+### c) pprof (sadece localhost'tan)
+
+Agent `127.0.0.1:6133/debug/pprof/*` üzerinde heap/goroutine/CPU profilleri
+sunuyor. Dışarıya açık değil; başka makineden erişmek için SSH port-forward
+gerek:
+
+```bash
+# Yerel makineden:
+ssh -L 6133:127.0.0.1:6133 icadmin@<sunucu>
+
+# Sonra başka bir terminalde:
+go tool pprof -http=:0 http://localhost:6133/debug/pprof/heap
+```
+
+Kapatmak istersen:
+
+```bash
+sudo tee /etc/systemd/system/iclic-host-agent.service.d/pprof.conf >/dev/null <<'EOF'
+[Service]
+Environment="ICLIC_AGENT_PPROF_ADDR=disabled"
+EOF
+sudo systemctl daemon-reload && sudo systemctl restart iclic-host-agent
+```
+
+Adres değiştirmek için aynı env var'a `127.0.0.1:6200` gibi bir değer ver.
 
 ---
 

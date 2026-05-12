@@ -21,7 +21,7 @@ import (
 
 // AgentVersion is bumped per release; protocol-level changes also bump
 // ProtocolVersion in the payload.
-const AgentVersion = "0.3.3"
+const AgentVersion = "0.4.0"
 
 // ProtocolVersion is the heartbeat schema version. Bumped on breaking changes;
 // ICLIC accepts the last N versions per docs/protocol.md.
@@ -80,7 +80,7 @@ func (s *Sender) SendOnce(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("post heartbeat: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
@@ -199,12 +199,22 @@ func (s *Sender) postRuntimeSignal(ctx context.Context, signal RuntimeSignal) er
 	if err != nil {
 		return fmt.Errorf("post runtime signal: %w", err)
 	}
-	defer resp.Body.Close()
+	defer drainAndClose(resp.Body)
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))
 	}
 	return nil
+}
+
+// drainAndClose fully reads any trailing response bytes (capped at 1 MB) so
+// the HTTP/1.1 keep-alive connection can be returned to the shared transport
+// pool. Without this, the next heartbeat dials a fresh TCP connection — over
+// nine days of 60 s ticks that's ~13K leaked sockets and the Transport's
+// idle-conn machinery never gets to amortize. (#2)
+func drainAndClose(body io.ReadCloser) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(body, 1<<20))
+	_ = body.Close()
 }
 
 func runtimeSignals(value any) []RuntimeSignal {

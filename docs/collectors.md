@@ -103,7 +103,8 @@ named primitive (WildFly CLI, jboss-cli, custom scripts) goes through this.
 |-------------|----------|---------|-------------|
 | cmd         | []string | —       | argv-style; no shell expansion |
 | timeout_sec | number   | `5`     | Capped at 30 |
-| parse       | string   | `raw`   | `raw` / `trimmed` / `int` / `float` |
+| parse       | string   | `raw`   | `raw` / `trimmed` / `int` / `float` / `json` |
+| path        | string   | (unset) | Only with `parse: json` — dotted path extracted from the decoded document. Same syntax as `http.get_json` below. |
 
 A non-zero exit is treated as an error (metric omitted that tick).
 
@@ -114,6 +115,30 @@ Returns `true` when `systemctl is-active <unit>` reports `active` (bool).
 | Arg  | Type   | Default | Description |
 |------|--------|---------|-------------|
 | unit | string | —       | e.g. `nginx.service` |
+
+### systemd.resources
+
+Reads cgroup-driven CPU + memory + restart counters for one or more units via
+`systemctl show -p Id,ActiveState,SubState,LoadState,MainPID,MemoryCurrent,CPUUsageNSec,NRestarts`.
+Returns a list of one map per requested unit so the server-detail "Services"
+panel can render a single table.
+
+| Arg         | Type     | Default | Description |
+|-------------|----------|---------|-------------|
+| units       | []string | —       | Full unit names, e.g. `icosys-icglb.service` |
+| timeout_sec | number   | `4`     | Per-binding cap; one fork+exec per unit |
+
+Per-unit shape:
+
+```
+{ unit, id, active_state, sub_state, load_state, main_pid,
+  memory_mb, cpu_ns, n_restarts }
+```
+
+`cpu_ns` is the cumulative `CPUUsageNSec` counter — the backend derives a
+percentage between heartbeats. Missing units come back with
+`load_state: not-found` instead of dropping the row, so the UI keeps a
+stable slot even for services that have been removed.
 
 ### tcp.connect
 
@@ -134,6 +159,78 @@ Single GET request.
 | url         | string | —       | Full URL |
 | timeout_sec | number | `3`     | |
 | expect      | string | `code`  | `code` (return status int) / `ok` (return 200..299 bool) |
+
+### http.get_json
+
+Fetches a JSON document and returns either the whole body or one value pulled
+out by a dotted path. The cheapest way to scrape a Spring Boot actuator
+endpoint, a Nexus admin API, or any other JSON-shaped admin surface without
+writing a per-target collector.
+
+| Arg         | Type   | Default | Description |
+|-------------|--------|---------|-------------|
+| url         | string | —       | Full URL |
+| path        | string | (unset) | Dotted path; empty = return whole document |
+| header      | map    | (unset) | Extra request headers (`Authorization`, etc.) |
+| basic_user  | string | (unset) | Pair with `basic_pass` for HTTP Basic auth |
+| basic_pass  | string | (unset) | |
+| timeout_sec | number | `4`     | |
+
+Path syntax:
+
+- `status` — top-level key
+- `components.db.status` — nested keys
+- `measurements.0.value` — numeric segment indexes into an array
+
+Numbers and booleans come back as `float64` / `bool`; strings as `string`.
+Missing keys yield `nil` and the binding's metric is omitted from the
+heartbeat. Response body is capped at 1 MB to keep one misbehaving endpoint
+from blowing up a tick.
+
+### docker.containers
+
+Talks directly to `dockerd` over `/var/run/docker.sock` (no `docker` CLI
+needed) and returns one row per container plus a state-bucket summary. The
+agent must be a member of the `docker` group on every host that ships this
+binding — `installer/install.sh` does that automatically.
+
+| Arg         | Type   | Default               | Description |
+|-------------|--------|-----------------------|-------------|
+| socket      | string | `/var/run/docker.sock` | Unix socket path |
+| all         | bool   | `true`                | Include stopped containers |
+| timeout_sec | number | `4`                   | |
+
+Shape:
+
+```
+{
+  total, running, exited, restarting, paused, dead, created, removing,
+  list: [ { name, image, state, status, restart_count } ]
+}
+```
+
+### docker.stats
+
+Per-container CPU + memory snapshot, fetched via the docker `stats` endpoint
+with `stream=false`. The CPU% is computed the same way `docker stats` does —
+delta of `cpu_usage.total_usage` over `system_cpu_usage`, multiplied by
+online CPUs — so a 2-core box pegged at 100% on each core reports `200.0`.
+
+| Arg         | Type   | Default               | Description |
+|-------------|--------|-----------------------|-------------|
+| socket      | string | `/var/run/docker.sock` | Unix socket path |
+| timeout_sec | number | `6`                   | Per-container timeout; goroutines fan out so the binding's total stays bounded |
+
+Shape: list of
+
+```
+{ name, image, state, cpu_pct, mem_used_mb, mem_limit_mb, mem_pct,
+  restart_count }
+```
+
+A single, process-lifetime HTTP client is shared across all docker
+primitives and across ticks (added in v0.4.0). Earlier builds opened a fresh
+`http.Transport` per request, which leaked memory on long-running hosts. (#2)
 
 ### file.stat
 
