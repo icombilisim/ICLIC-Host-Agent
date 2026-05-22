@@ -12,6 +12,7 @@ go.work.sum
 # IDE
 .idea/
 .vscode/
+.settings/
 *.iml
 
 # Local config / state for dev runs
