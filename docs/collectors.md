@@ -232,6 +232,56 @@ A single, process-lifetime HTTP client is shared across all docker
 primitives and across ticks (added in v0.4.0). Earlier builds opened a fresh
 `http.Transport` per request, which leaked memory on long-running hosts. (#2)
 
+### runtime.services
+
+Turns a configurable service registry into `runtime_instances` signals for
+ICLIC Fleet and Deployment Status. Unlike one-off `exec` probes, this primitive
+always emits one row per configured service: a failed container or actuator
+probe becomes `STALE` with diagnostic payload, so the UI shows a broken service
+instead of losing the row. (#112)
+
+| Arg         | Type     | Default               | Description |
+|-------------|----------|-----------------------|-------------|
+| socket      | string   | `/var/run/docker.sock` | Docker socket used to inspect container state |
+| timeout_sec | number   | `4`                   | Per-service probe timeout |
+| services    | []map    | —                     | Service registry entries |
+
+Service entry fields:
+
+| Field           | Required | Description |
+|-----------------|----------|-------------|
+| product_code    | yes      | ICLIC product code, e.g. `ICOSYS` |
+| component_code  | yes      | `runtime_component.code`, e.g. `icglb-services` |
+| health_url      | yes      | JSON health endpoint |
+| info_url        | no       | JSON info/version endpoint |
+| container       | no       | Docker container name to inspect |
+| probe           | no       | `http` or `docker_exec`; `docker_exec` runs `wget` inside `container` |
+| instance_key    | no       | Stable identity; defaults to container or component code |
+| environment     | no       | `PROD`, `TEST`, `STAGING`, or `DEV` when known |
+| version_path    | no       | JSON dot path for version; defaults to `app.version`, then `build.version` |
+| git_commit_path | no       | JSON dot path for commit; defaults to `git.commit.id` |
+
+Example:
+
+```yaml
+- id: icosys_runtime_instances
+  primitive: runtime.services
+  args:
+    services:
+      - product_code: ICOSYS
+        component_code: icglb-services
+        container: icosys-icglb
+        probe: docker_exec
+        health_url: http://127.0.0.1:8010/icglb/services/actuator/health
+        info_url: http://127.0.0.1:8010/icglb/services/actuator/info
+  output_key: runtime_instances
+```
+
+Adding a service is a catalog + config operation: create or activate the
+matching `runtime_component` row in ICLIC, add one service entry to the host's
+collector YAML, then wait for the next heartbeat. Removing a service is the
+reverse: delete the service entry or mark the catalog component inactive.
+
 ### file.stat
 
 | Arg   | Type   | Default  | Description |

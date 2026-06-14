@@ -28,6 +28,59 @@
 # Trim to the services that actually live on a given host (e.g. on a
 # single-tenant deployment that only runs icglb, delete the others).
 
+# Structured runtime signals for ICLIC Fleet / Deployment Status. The older
+# flat metrics below stay for backward-compatible raw heartbeat views; this
+# binding is the service registry operators edit when ICOSYS adds/removes a
+# deployable backend component. (#112)
+- id: icosys_runtime_instances
+  primitive: runtime.services
+  args:
+    timeout_sec: 5
+    services:
+      - product_code: ICOSYS
+        component_code: icglb-services
+        name: ICGLB Core Services
+        container: icosys-icglb
+        probe: docker_exec
+        health_url: http://127.0.0.1:8010/icglb/services/actuator/health
+        info_url: http://127.0.0.1:8010/icglb/services/actuator/info
+      - product_code: ICOSYS
+        component_code: bpm-service
+        name: BPM Services
+        container: icosys-icbpm
+        probe: docker_exec
+        health_url: http://127.0.0.1:8020/icbpm/services/actuator/health
+        info_url: http://127.0.0.1:8020/icbpm/services/actuator/info
+      - product_code: ICOSYS
+        component_code: dms-service
+        name: DMS Services
+        container: icosys-icdms
+        probe: docker_exec
+        health_url: http://127.0.0.1:8030/icdms/services/actuator/health
+        info_url: http://127.0.0.1:8030/icdms/services/actuator/info
+      - product_code: ICOSYS
+        component_code: hrm-service
+        name: HRM Services
+        container: icosys-ichrm
+        probe: docker_exec
+        health_url: http://127.0.0.1:8040/ichrm/services/actuator/health
+        info_url: http://127.0.0.1:8040/ichrm/services/actuator/info
+      - product_code: ICOSYS
+        component_code: asm-service
+        name: ASM Services
+        container: icosys-icasm
+        probe: docker_exec
+        health_url: http://127.0.0.1:8050/icasm/services/actuator/health
+        info_url: http://127.0.0.1:8050/icasm/services/actuator/info
+      - product_code: ICOSYS
+        component_code: workflow-service
+        name: Workflow Services
+        container: icosys-icwfl
+        probe: docker_exec
+        health_url: http://127.0.0.1:8060/icwfl/services/actuator/health
+        info_url: http://127.0.0.1:8060/icwfl/services/actuator/info
+  output_key: runtime_instances
+
 # ─── ICGLB (core, port 8010) ────────────────────────────────────────
 - id: icglb_health
   primitive: exec

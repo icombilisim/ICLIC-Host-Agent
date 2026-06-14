@@ -28,5 +28,6 @@ func DefaultRegistry() map[string]PrimitiveFunc {
 		"apt.security_count":  aptSecurityCount,
 		"docker.containers":   dockerContainers,
 		"docker.stats":        dockerStats,
+		"runtime.services":    runtimeServices,
 	}
 }
