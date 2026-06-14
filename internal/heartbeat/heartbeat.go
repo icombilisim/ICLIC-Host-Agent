@@ -21,7 +21,7 @@ import (
 
 // AgentVersion is bumped per release; protocol-level changes also bump
 // ProtocolVersion in the payload.
-const AgentVersion = "0.4.1"
+const AgentVersion = "0.4.2"
 
 // ProtocolVersion is the heartbeat schema version. Bumped on breaking changes;
 // ICLIC accepts the last N versions per docs/protocol.md.
@@ -62,7 +62,8 @@ func NewSender(cfg *config.Config, collectorDir string) *Sender {
 // next interval.
 func (s *Sender) SendOnce(ctx context.Context) error {
 	payload := s.buildPayload(ctx)
-	body, err := json.Marshal(payload)
+	hostPayload := payload.withoutMetric("runtime_instances")
+	body, err := json.Marshal(hostPayload)
 	if err != nil {
 		return fmt.Errorf("marshal payload: %w", err)
 	}
@@ -106,6 +107,20 @@ type Payload struct {
 }
 
 func (p Payload) metricCount() int { return len(p.Metrics) }
+
+func (p Payload) withoutMetric(key string) Payload {
+	if _, ok := p.Metrics[key]; !ok {
+		return p
+	}
+	metrics := make(map[string]any, len(p.Metrics)-1)
+	for k, v := range p.Metrics {
+		if k != key {
+			metrics[k] = v
+		}
+	}
+	p.Metrics = metrics
+	return p
+}
 
 // RuntimeSignal is the agent-side shape forwarded to ICLIC's runtime
 // deployment status endpoint. Operators can produce an array of these under

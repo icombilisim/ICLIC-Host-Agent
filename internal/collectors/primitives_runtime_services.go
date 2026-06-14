@@ -80,8 +80,6 @@ func probeRuntimeService(ctx context.Context, socket string, timeout time.Durati
 		"source":     "host-agent-runtime-services",
 		"name":       svc.Name,
 		"container":  svc.Container,
-		"healthUrl":  svc.HealthURL,
-		"infoUrl":    svc.InfoURL,
 		"probe":      firstNonBlank(svc.Probe, "http"),
 		"checkedAt":  time.Now().UTC().Format(time.RFC3339),
 	}
