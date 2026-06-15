@@ -99,9 +99,10 @@ execution, ever.**
   step-up on the ICLIC side, and every request is audited.
 
 **Status:** read verbs shipped — `logs.tail` (live/follow), `proc.top`,
-`disk.df`, `net.listen`. Write/management verbs (restart/deploy/prune, 2FA-gated
-on the ICLIC side) are the next phase. Tracking: ICLIC #40 · #337 (read) · #339
-(write).
+`proc.top.live` (auto-refreshing top), `disk.df`, `net.listen`, `cron.list`
+(crontabs + cron.d + systemd timers). Write/management verbs (restart/deploy/prune,
+2FA-gated on the ICLIC side) are the next phase. Tracking: ICLIC #40 · #337 (read)
+· #348 (live top + cron) · #339 (write).
 
 Opt-in config (only what you list is ever served):
 
@@ -118,9 +119,10 @@ control:
       icglb: { type: docker,   container: icosys-icglb }
       nginx: { type: file,     path: /var/log/nginx/error.log }
       # iclic: { type: journald, unit: iclic-backend }
-  top:   { enabled: true }     # proc.top  — process list
+  top:   { enabled: true }     # proc.top + proc.top.live — process list (snapshot + live)
   df:    { enabled: true }     # disk.df   — filesystem usage
   ports: { enabled: true }     # net.listen — listening ports + owning service
+  cron:  { enabled: true }     # cron.list — crontabs + /etc/cron.d + systemd timers
   # actions: (write verbs — restart/deploy/prune) land with ICLIC #339
 ```
 
