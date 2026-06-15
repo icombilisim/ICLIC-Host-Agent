@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/icombilisim/iclic-host-agent/internal/config"
+	"github.com/icombilisim/iclic-host-agent/internal/control"
 	"github.com/icombilisim/iclic-host-agent/internal/heartbeat"
 )
 
@@ -80,6 +81,12 @@ func main() {
 	}()
 
 	sender := heartbeat.NewSender(cfg, collectorDir)
+
+	// Control channel runs alongside the heartbeat ticker on the same
+	// process-lifetime ctx, so SIGTERM/SIGINT cancels both. Outbound-only WSS;
+	// ICLIC requests, the agent serves its closed verb set. (#40 Faz 4a)
+	go control.RunControlChannel(ctx, cfg, heartbeat.AgentVersion)
+
 	ticker := time.NewTicker(time.Duration(cfg.HeartbeatIntervalSeconds) * time.Second)
 	defer ticker.Stop()
 
