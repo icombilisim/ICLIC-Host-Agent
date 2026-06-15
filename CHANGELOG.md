@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.6.0...v0.7.0) (2026-06-15)
+
+
+### Features
+
+* **agent:** service logs → control channel ([#342](https://github.com/icombilisim/ICLIC-Host-Agent/issues/342), Faz 4d-2) ([c77d277](https://github.com/icombilisim/ICLIC-Host-Agent/commit/c77d277ed82e2eb041861779de1316a3ad8c4b28))
+
 ## [0.6.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.5.0...v0.6.0) (2026-06-15)
 
 
