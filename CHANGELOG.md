@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.5.0...v0.6.0) (2026-06-15)
+
+
+### Features
+
+* **agent:** service definitions — axis expander + heartbeat wiring ([#342](https://github.com/icombilisim/ICLIC-Host-Agent/issues/342), Faz 4d-1) ([f25f653](https://github.com/icombilisim/ICLIC-Host-Agent/commit/f25f6535f9222576611a85c2231cb3d11ff4e26f))
+* **agent:** service definitions — composable axis expander + heartbeat wiring ([#342](https://github.com/icombilisim/ICLIC-Host-Agent/issues/342)) ([64bd406](https://github.com/icombilisim/ICLIC-Host-Agent/commit/64bd406c7fcfa5d3807b9248b1a0c898102f8b95))
+
 ## [0.5.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.4.2...v0.5.0) (2026-06-15)
 
 
