@@ -200,17 +200,19 @@ within 60 seconds; the server's `enrollment_status` flips from
 
 ## Releasing (maintainers)
 
-1. Bump `AgentVersion` in `internal/heartbeat/heartbeat.go`
-2. Commit + push
-3. `git tag v0.X.Y && git push --tags`
-4. `.github/workflows/release.yml` builds linux-amd64 + linux-arm64,
-   computes `SHA256SUMS`, bundles `configs/` as `configs.tar.gz`, and
-   creates a GitHub Release with all assets attached
-5. Run `deploy-all.sh` against the prod inventory once smoke-tested
-   on devops
+Releases are automated by [release-please](https://github.com/googleapis/release-please):
 
-The workflow rejects tag/const drift — it errors out if the tag
-doesn't match `AgentVersion`.
+1. Land Conventional-Commit PRs on `main` (`feat:` → minor, `fix:` → patch).
+2. release-please opens/updates a **release PR** (`chore(main): release X.Y.Z`)
+   that bumps `AgentVersion` (via the `x-release-please-version` annotation in
+   `internal/heartbeat/heartbeat.go`) and the `CHANGELOG`.
+3. Merge the release PR → release-please tags `vX.Y.Z` and creates the GitHub
+   Release; the `build` job then attaches the linux binaries, `configs.tar.gz`,
+   `install.sh`, the systemd unit, and `SHA256SUMS`.
+4. Roll it out: `deploy-all.sh` against the prod inventory once smoke-tested.
+
+Don't hand-bump `AgentVersion` or push `v*` tags manually — release-please owns
+both (manifest: `.release-please-manifest.json`, config: `release-please-config.json`).
 
 ## Protocol
 

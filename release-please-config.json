@@ -1,0 +1,16 @@
+{
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "packages": {
+    ".": {
+      "release-type": "go",
+      "package-name": "iclic-host-agent",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "internal/heartbeat/heartbeat.go"
+        }
+      ]
+    }
+  }
+}
