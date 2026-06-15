@@ -49,6 +49,25 @@ type serviceMetric struct {
 // A missing dir yields no bindings and no error. Files without a `service.name`
 // are skipped (not an error); a YAML parse failure is reported.
 func LoadServiceDir(dir string) ([]Binding, error) {
+	defs, err := loadServiceDefs(dir)
+	if err != nil {
+		return nil, err
+	}
+	var all []Binding
+	for _, s := range defs {
+		bs, err := expandService(s)
+		if err != nil {
+			return nil, fmt.Errorf("service %s: %w", s.Name, err)
+		}
+		all = append(all, bs...)
+	}
+	return all, nil
+}
+
+// loadServiceDefs reads + parses every service definition in dir. Missing dir =
+// no defs, no error; files without `service.name` are skipped; parse errors are
+// reported. Shared by the Plane-A expander and the Plane-B log-source extractor.
+func loadServiceDefs(dir string) ([]serviceDef, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -58,7 +77,7 @@ func LoadServiceDir(dir string) ([]Binding, error) {
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 
-	var all []Binding
+	var defs []serviceDef
 	for _, e := range entries {
 		name := e.Name()
 		if e.IsDir() || (!strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml")) {
@@ -75,13 +94,49 @@ func LoadServiceDir(dir string) ([]Binding, error) {
 		if sf.Service.Name == "" {
 			continue // not a service file
 		}
-		bs, err := expandService(sf.Service)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", name, err)
-		}
-		all = append(all, bs...)
+		defs = append(defs, sf.Service)
 	}
-	return all, nil
+	return defs, nil
+}
+
+// ServiceLogSource is a control-channel log source derived from a service's
+// `logs:` block — so defining a service also makes its logs tailable (Plane B)
+// without re-declaring them in control.yaml. (#342 4d-2)
+type ServiceLogSource struct {
+	Name      string
+	Type      string
+	Container string
+	Path      string
+	Unit      string
+}
+
+// LoadServiceLogSources returns one entry per service that declares a `logs:`
+// block. The control channel merges these into its allow-list — but only when
+// the operator has enabled the channel + logs (the opt-in still governs).
+func LoadServiceLogSources(dir string) ([]ServiceLogSource, error) {
+	defs, err := loadServiceDefs(dir)
+	if err != nil {
+		return nil, err
+	}
+	var out []ServiceLogSource
+	for _, s := range defs {
+		if len(s.Logs) == 0 {
+			continue
+		}
+		out = append(out, ServiceLogSource{
+			Name:      s.Name,
+			Type:      logsStr(s.Logs, "type"),
+			Container: logsStr(s.Logs, "container"),
+			Path:      logsStr(s.Logs, "path"),
+			Unit:      logsStr(s.Logs, "unit"),
+		})
+	}
+	return out, nil
+}
+
+func logsStr(m map[string]any, key string) string {
+	s, _ := m[key].(string)
+	return s
 }
 
 // expandService turns one service into Bindings: up/health/version axes plus any

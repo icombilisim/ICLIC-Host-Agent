@@ -2,8 +2,10 @@ package control
 
 import (
 	"os"
+	"path/filepath"
 	"sort"
 
+	"github.com/icombilisim/iclic-host-agent/internal/collectors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -90,6 +92,28 @@ func loadControlConfig() ControlConfig {
 	}
 	if l.MaxFollowSeconds > hardMaxFollowSeconds {
 		l.MaxFollowSeconds = hardMaxFollowSeconds
+	}
+
+	// Service definitions contribute log sources to the channel — define a
+	// service once (services.d) and its logs are tailable without re-listing
+	// them here. Gated on the operator having enabled the channel + logs
+	// (default OFF), so a service-def can never bypass the opt-in. control.yaml
+	// sources win on a name clash. (#342 4d-2)
+	if cfg.Control.Enabled && cfg.Control.Logs.Enabled {
+		servicesDir := filepath.Join(filepath.Dir(path), "services.d")
+		if sources, srcErr := collectors.LoadServiceLogSources(servicesDir); srcErr == nil {
+			for _, s := range sources {
+				if s.Type == "" {
+					continue // a logs: block with no type isn't usable
+				}
+				if l.Sources == nil {
+					l.Sources = map[string]logSource{}
+				}
+				if _, exists := l.Sources[s.Name]; !exists {
+					l.Sources[s.Name] = logSource{Type: s.Type, Container: s.Container, Path: s.Path, Unit: s.Unit}
+				}
+			}
+		}
 	}
 	return cfg
 }

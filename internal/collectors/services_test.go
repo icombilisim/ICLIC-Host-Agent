@@ -60,6 +60,26 @@ func TestExpandServiceUnknownAxisErrors(t *testing.T) {
 	}
 }
 
+func TestLoadServiceLogSources(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "app.yaml"),
+		[]byte("service:\n  name: app\n  up: { tcp: 80 }\n  logs: { type: docker, container: app-c }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A service without a logs: block contributes no source.
+	if err := os.WriteFile(filepath.Join(dir, "nolog.yaml"),
+		[]byte("service:\n  name: nolog\n  up: { tcp: 81 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	srcs, err := LoadServiceLogSources(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(srcs) != 1 || srcs[0].Name != "app" || srcs[0].Type != "docker" || srcs[0].Container != "app-c" {
+		t.Fatalf("expected one docker source for app, got %+v", srcs)
+	}
+}
+
 func TestLoadServiceDir(t *testing.T) {
 	dir := t.TempDir()
 	yaml := "service:\n  name: app\n  label: App\n  up: { tcp: 9000 }\n  metrics:\n    - { key: q, exec: [echo, \"1\"], parse: int }\n"
