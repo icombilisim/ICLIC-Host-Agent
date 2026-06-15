@@ -1,25 +1,43 @@
 name: Release
 
-# Tag-triggered release: pushing a `v*` tag (e.g. v0.3.0) builds linux
-# binaries for amd64 + arm64, computes SHA256SUMS, and publishes a
-# GitHub Release with everything install.sh expects (binaries, the
-# installer script + systemd unit, and a configs tarball). Bump the
-# AgentVersion const in internal/heartbeat/heartbeat.go in the same
-# commit that gets tagged, so the running agent reports the right
-# version on its first heartbeat after upgrade.
+# Automated releases via release-please. On every push to main it opens/updates
+# a "release PR" (chore: release X.Y.Z) that bumps the version (manifest +
+# AgentVersion via the x-release-please-version annotation) and the CHANGELOG.
+# Merging that PR creates the tag + GitHub Release; the build job then attaches
+# the linux binaries, configs tarball, installer + SHA256SUMS that install.sh
+# expects. GitHub-hosted (this repo is public — free, and self-hosted refuses
+# public repos). (#337)
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
 
 permissions:
   contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  release:
-    # GitHub-hosted: public repo can't use org self-hosted runners (security
-    # default); hosted runners are free for public repos. (#337)
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - name: Create release PR or GitHub release
+        id: rp
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -28,22 +46,6 @@ jobs:
         with:
           go-version: "1.22"
           cache: true
-
-      - name: Resolve version
-        id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-
-      - name: Verify AgentVersion matches tag
-        run: |
-          # Tag is "vX.Y.Z"; const is "X.Y.Z". Reject if they disagree —
-          # otherwise the release artefact reports a different version
-          # than the dashboard sees in heartbeats.
-          tag="${{ steps.version.outputs.tag }}"
-          const="$(grep -oP 'AgentVersion\s*=\s*"\K[^"]+' internal/heartbeat/heartbeat.go)"
-          if [ "v${const}" != "${tag}" ]; then
-            echo "::error::AgentVersion (${const}) does not match tag (${tag}). Bump the const and retag."
-            exit 1
-          fi
 
       - name: go vet
         run: go vet ./...
@@ -58,7 +60,7 @@ jobs:
           CGO_ENABLED: 0
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X main.buildTag=${{ steps.version.outputs.tag }}" \
+          go build -trimpath -ldflags "-s -w -X main.buildTag=${{ needs.release-please.outputs.tag_name }}" \
             -o dist/iclic-host-agent-linux-amd64 ./cmd/agent
 
       - name: Build linux/arm64
@@ -67,15 +69,11 @@ jobs:
           GOARCH: arm64
           CGO_ENABLED: 0
         run: |
-          go build -trimpath -ldflags "-s -w -X main.buildTag=${{ steps.version.outputs.tag }}" \
+          go build -trimpath -ldflags "-s -w -X main.buildTag=${{ needs.release-please.outputs.tag_name }}" \
             -o dist/iclic-host-agent-linux-arm64 ./cmd/agent
 
       - name: Bundle configs
-        run: |
-          # Ship the entire configs/ tree as one tarball so install.sh
-          # can drop it into /etc/iclic-host-agent/collectors.d in one
-          # extract — no per-file curl loop, no partial deploys.
-          tar -czf dist/configs.tar.gz -C configs .
+        run: tar -czf dist/configs.tar.gz -C configs .
 
       - name: Stage installer assets
         run: |
@@ -92,19 +90,16 @@ jobs:
             install.sh \
             iclic-host-agent.service \
             > SHA256SUMS
-          cat SHA256SUMS
 
-      - name: Create GitHub Release
+      - name: Attach assets to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="${{ steps.version.outputs.tag }}"
-          gh release create "${tag}" \
-            --title "${tag}" \
-            --generate-notes \
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
             dist/iclic-host-agent-linux-amd64 \
             dist/iclic-host-agent-linux-arm64 \
             dist/configs.tar.gz \
             dist/install.sh \
             dist/iclic-host-agent.service \
-            dist/SHA256SUMS
+            dist/SHA256SUMS \
+            --clobber
