@@ -58,3 +58,29 @@ func TestServiceLogsRequireOptIn(t *testing.T) {
 		t.Fatal("service log source must NOT be served when logs are not opted in")
 	}
 }
+
+// Enabling top advertises both the snapshot and the live verb; cron adds
+// cron.list — and each stays gated by its own toggle. (#348)
+func TestVerbsIncludeLiveTopAndCron(t *testing.T) {
+	cfg := ControlConfig{Control: sectionControl{
+		Enabled: true,
+		Top:     simpleVerb{Enabled: true},
+		Cron:    simpleVerb{Enabled: true},
+	}}
+	got := map[string]bool{}
+	for _, v := range cfg.verbs() {
+		got[v] = true
+	}
+	for _, want := range []string{"proc.top", "proc.top.live", "cron.list"} {
+		if !got[want] {
+			t.Fatalf("verbs() missing %q; got %v", want, cfg.verbs())
+		}
+	}
+
+	cfg.Control.Cron.Enabled = false
+	for _, v := range cfg.verbs() {
+		if v == "cron.list" {
+			t.Fatal("cron.list advertised while cron disabled")
+		}
+	}
+}

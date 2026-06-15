@@ -35,6 +35,9 @@ const (
 	maxBackoff      = 30 * time.Second
 	readLimitBytes  = 256 * 1024  // inbound requests are tiny; cap to bound memory
 	lineBufferBytes = 1024 * 1024 // a single log line may be large; cap, don't OOM
+	// maxLiveStreamSeconds caps an auto-refreshing snapshot (proc.top.live) so a
+	// stolen ICLIC can't pin a stream open forever — mirrors the logs follow cap.
+	maxLiveStreamSeconds = 600
 )
 
 // hello is the first frame the agent sends after connecting: identity plus the
@@ -183,10 +186,14 @@ func (s *session) handleReq(ctx context.Context, f reqFrame) {
 		s.spawn(ctx, f, s.logsJob)
 	case "proc.top":
 		s.spawn(ctx, f, s.procTopJob)
+	case "proc.top.live":
+		s.spawn(ctx, f, s.procTopLiveJob)
 	case "disk.df":
 		s.spawn(ctx, f, s.diskDfJob)
 	case "net.listen":
 		s.spawn(ctx, f, s.netListenJob)
+	case "cron.list":
+		s.spawn(ctx, f, s.cronListJob)
 	default:
 		// The agent serves only its closed verb set; everything else is refused. (#337)
 		s.write(ctx, errFrame(f.ReqID, "unknown_verb", 400))
@@ -261,6 +268,36 @@ func (s *session) netListenJob(ctx context.Context, f reqFrame) {
 		return
 	}
 	s.streamCommand(ctx, f.ReqID, []string{"ss", "-tulnp"}, 500)
+}
+
+// procTopLiveJob serves proc.top.live: an auto-refreshing top (Linux top -b),
+// streamed until cancel or the live ceiling. Same opt-in as the snapshot. (#348)
+func (s *session) procTopLiveJob(ctx context.Context, f reqFrame) {
+	if !s.cfg.topEnabled() {
+		s.bestEffort(errFrame(f.ReqID, "not_permitted", 403))
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, maxLiveStreamSeconds*time.Second)
+	defer cancel()
+	delay := clampInt(argInt(f.Args, "interval", 2), 1, 10)
+	s.streamCommand(ctx, f.ReqID, []string{"top", "-b", "-d", strconv.Itoa(delay)}, 0)
+}
+
+// cronListJob serves cron.list: a snapshot of scheduled work across cron's many
+// homes plus systemd timers. The sh -c script is a fixed constant (no ICLIC/user
+// input), so it does not reintroduce the shell pass-through forbidden for
+// operator-supplied args. (#348)
+func (s *session) cronListJob(ctx context.Context, f reqFrame) {
+	if !s.cfg.cronEnabled() {
+		s.bestEffort(errFrame(f.ReqID, "not_permitted", 403))
+		return
+	}
+	const script = "echo '### systemd timers'; systemctl list-timers --all --no-pager 2>/dev/null; " +
+		"echo; echo '### /etc/crontab'; cat /etc/crontab 2>/dev/null; " +
+		"echo; echo '### /etc/cron.d'; for f in /etc/cron.d/*; do [ -f \"$f\" ] && echo \"--- $f ---\" && cat \"$f\"; done 2>/dev/null; " +
+		"echo; echo '### root crontab'; crontab -l 2>/dev/null; " +
+		"echo; echo '### periodic dirs'; ls -1 /etc/cron.hourly /etc/cron.daily /etc/cron.weekly /etc/cron.monthly 2>/dev/null"
+	s.streamCommand(ctx, f.ReqID, []string{"sh", "-c", script}, 2000)
 }
 
 // streamCommand runs a fixed argv (no shell) and streams its stdout lines back
