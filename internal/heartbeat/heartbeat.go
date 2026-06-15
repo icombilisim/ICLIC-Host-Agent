@@ -174,6 +174,13 @@ func (s *Sender) buildPayload(parent context.Context) Payload {
 
 	metrics := collectors.Run(ctx, bindings, s.registry, perBindingTimeout)
 
+	// Advertise the host's service definitions so the Fleet UI can render generic
+	// per-service cards (status/version from the <name>_* metrics above, plus a
+	// logs button) — ICLIC never has to know the app. (#342 4d-3)
+	if summaries, serr := collectors.LoadServiceSummaries(s.servicesDir); serr == nil && len(summaries) > 0 {
+		metrics["services"] = summaries
+	}
+
 	// Agent-intrinsic fields go in last so they always win over a binding
 	// that tries to redefine them. `reported_at` is the agent's wall clock
 	// at sample time; ICLIC also stamps `received_at` server-side so clock

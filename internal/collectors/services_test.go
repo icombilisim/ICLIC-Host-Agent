@@ -60,6 +60,35 @@ func TestExpandServiceUnknownAxisErrors(t *testing.T) {
 	}
 }
 
+func TestLoadServiceSummaries(t *testing.T) {
+	dir := t.TempDir()
+	yaml := "service:\n  name: tleasy\n  label: TL Easy\n" +
+		"  up: { tcp: 8080 }\n  health: { http: \"http://x/h\", path: status }\n  version: { exec: [v] }\n" +
+		"  metrics:\n    - { key: q, exec: [echo, \"1\"] }\n  logs: { type: file, path: /var/log/x }\n"
+	if err := os.WriteFile(filepath.Join(dir, "app.yaml"), []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sums, err := LoadServiceSummaries(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sums) != 1 {
+		t.Fatalf("want 1 summary, got %d", len(sums))
+	}
+	s := sums[0]
+	if s.Name != "tleasy" || s.Label != "TL Easy" || !s.Logs {
+		t.Fatalf("summary header: %+v", s)
+	}
+	kind := map[string]string{}
+	for _, m := range s.Metrics {
+		kind[m.Key] = m.Kind
+	}
+	if kind["tleasy_up"] != "up" || kind["tleasy_health"] != "health" ||
+		kind["tleasy_version"] != "version" || kind["tleasy_q"] != "custom" {
+		t.Fatalf("metric refs: %+v", s.Metrics)
+	}
+}
+
 func TestLoadServiceLogSources(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "app.yaml"),

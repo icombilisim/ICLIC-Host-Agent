@@ -172,6 +172,54 @@ func expandService(s serviceDef) ([]Binding, error) {
 	return bs, nil
 }
 
+// ServiceMetricRef points a UI at one metric a service produces.
+type ServiceMetricRef struct {
+	Key  string `json:"key"`  // full hostMetrics key, e.g. tleasy_up
+	Kind string `json:"kind"` // up | health | version | custom
+}
+
+// ServiceSummary advertises a monitored service in the heartbeat so the Fleet
+// UI can render a generic per-service card (status from up/health, version, a
+// logs button) without ICLIC knowing the app. (#342 4d-3)
+type ServiceSummary struct {
+	Name    string             `json:"name"`
+	Label   string             `json:"label,omitempty"`
+	Logs    bool               `json:"logs"` // has a tailable logs: source
+	Metrics []ServiceMetricRef `json:"metrics"`
+}
+
+// LoadServiceSummaries returns one summary per service in dir, listing the
+// metric keys it produces and whether it exposes logs. Mirrors expandService's
+// key scheme so the UI reads <name>_<axis>/<name>_<metric> from hostMetrics.
+func LoadServiceSummaries(dir string) ([]ServiceSummary, error) {
+	defs, err := loadServiceDefs(dir)
+	if err != nil {
+		return nil, err
+	}
+	var out []ServiceSummary
+	for _, s := range defs {
+		sum := ServiceSummary{
+			Name:  s.Name,
+			Label: s.Label,
+			Logs:  len(s.Logs) > 0 && logsStr(s.Logs, "type") != "",
+		}
+		if len(s.Up) > 0 {
+			sum.Metrics = append(sum.Metrics, ServiceMetricRef{Key: s.Name + "_up", Kind: "up"})
+		}
+		if len(s.Health) > 0 {
+			sum.Metrics = append(sum.Metrics, ServiceMetricRef{Key: s.Name + "_health", Kind: "health"})
+		}
+		if len(s.Version) > 0 {
+			sum.Metrics = append(sum.Metrics, ServiceMetricRef{Key: s.Name + "_version", Kind: "version"})
+		}
+		for _, m := range s.Metrics {
+			sum.Metrics = append(sum.Metrics, ServiceMetricRef{Key: s.Name + "_" + m.Key, Kind: "custom"})
+		}
+		out = append(out, sum)
+	}
+	return out, nil
+}
+
 // axisBinding maps one composable axis to a Binding. Returns ok=false when the
 // axis is omitted (empty), an error when a probe key is present but unknown.
 func axisBinding(name, axisName string, ax axis) (Binding, bool, error) {
