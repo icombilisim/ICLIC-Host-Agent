@@ -3,11 +3,55 @@ package collectors
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
 	"time"
 )
+
+// httpProbe is a synthetic uptime check: one GET, reporting reachability,
+// response latency, and status as a map { up, latency_ms, status }. A connection
+// failure returns up=false (status 0) rather than an error, so "down" is a
+// recorded data point, not a missing metric. up = 2xx/3xx by default, or exactly
+// expect_status when set. (#40 W1)
+//
+// Args:
+//
+//	url:           string  required
+//	timeout_sec:   number  optional, default 5
+//	expect_status: number  optional — if set, up requires this exact status
+func httpProbe(ctx context.Context, args map[string]any) (any, error) {
+	url, _ := args["url"].(string)
+	if url == "" {
+		return nil, fmt.Errorf("url: required")
+	}
+	timeoutSec := argFloat(args, "timeout_sec", 5)
+	cctx, cancel := context.WithTimeout(ctx, time.Duration((timeoutSec+1)*float64(time.Second)))
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(cctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "iclic-host-agent collector probe")
+	client := &http.Client{Timeout: time.Duration(timeoutSec * float64(time.Second))}
+
+	start := time.Now()
+	resp, err := client.Do(req)
+	latencyMs := int(time.Since(start).Milliseconds())
+	if err != nil {
+		return map[string]any{"up": false, "latency_ms": latencyMs, "status": 0}, nil
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096)) // let keep-alive reuse the conn
+
+	up := resp.StatusCode >= 200 && resp.StatusCode < 400
+	if want := int(argFloat(args, "expect_status", 0)); want != 0 {
+		up = resp.StatusCode == want
+	}
+	return map[string]any{"up": up, "latency_ms": latencyMs, "status": resp.StatusCode}, nil
+}
 
 // tcpConnect probes whether a TCP port accepts connections. Returns true on
 // successful three-way handshake within timeout, false on any error.

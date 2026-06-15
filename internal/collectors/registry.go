@@ -24,6 +24,7 @@ func DefaultRegistry() map[string]PrimitiveFunc {
 		"tcp.connect":             tcpConnect,
 		"ssl.cert_expiry":         sslCertExpiry,
 		"http.get":                httpGet,
+		"http.probe":              httpProbe,
 		"http.get_json":           httpGetJSON,
 		"file.stat":               fileStat,
 		"file.newest_age_seconds": fileNewestAgeSeconds,

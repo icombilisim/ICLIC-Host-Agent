@@ -1,0 +1,14 @@
+# Synthetic uptime/latency for URLs this host serves or depends on. Each metric
+# is { up, latency_ms, status }; a down target is recorded (up:false), not missing.
+# Alert on up:false or high latency_ms. Targets are environment-specific — enable
+# and edit the ones you need. (#40 W1)
+
+# - id: uptime_app
+#   primitive: http.probe
+#   args: { url: "https://app.example.com/healthz", timeout_sec: 5 }
+#   output_key: uptime_app
+
+# - id: uptime_dependency
+#   primitive: http.probe
+#   args: { url: "https://api.partner.com/ping", timeout_sec: 5, expect_status: 200 }
+#   output_key: uptime_dependency
