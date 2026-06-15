@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -113,20 +114,26 @@ func dockerGet(ctx context.Context, socket, path string, timeout time.Duration, 
 //	{
 //	  "total": 12, "running": 9, "exited": 2, "restarting": 1,
 //	  "paused": 0, "dead": 0, "created": 0,
-//	  "list": [{ name, image, state, status, restart_count, started_at }]
+//	  "list": [{ name, image, state, status, restart_count, ports }]
 //	}
 func dockerContainers(ctx context.Context, args map[string]any) (any, error) {
 	socket := argString(args, "socket", dockerDefaultSocket)
 	all := argBool(args, "all", true)
 	timeout := time.Duration(argFloat(args, "timeout_sec", 4) * float64(time.Second))
 
+	type rawPort struct {
+		PrivatePort int    `json:"PrivatePort"`
+		PublicPort  int    `json:"PublicPort"`
+		Type        string `json:"Type"`
+	}
 	type rawContainer struct {
-		ID      string   `json:"Id"`
-		Names   []string `json:"Names"`
-		Image   string   `json:"Image"`
-		State   string   `json:"State"`
-		Status  string   `json:"Status"`
-		Created int64    `json:"Created"`
+		ID      string    `json:"Id"`
+		Names   []string  `json:"Names"`
+		Image   string    `json:"Image"`
+		State   string    `json:"State"`
+		Status  string    `json:"Status"`
+		Created int64     `json:"Created"`
+		Ports   []rawPort `json:"Ports"`
 	}
 
 	var raws []rawContainer
@@ -144,6 +151,7 @@ func dockerContainers(ctx context.Context, args map[string]any) (any, error) {
 		State        string `json:"state"`
 		Status       string `json:"status"`
 		RestartCount int    `json:"restart_count"`
+		Ports        string `json:"ports"`
 	}
 	rows := make([]containerRow, 0, len(raws))
 	counts := map[string]int{
@@ -162,9 +170,25 @@ func dockerContainers(ctx context.Context, args map[string]any) (any, error) {
 		if c.State == "restarting" || c.State == "running" {
 			restartCount = dockerRestartCount(ctx, socket, c.ID, timeout)
 		}
+		// Published/exposed ports as a compact, deduped, sorted
+		// "public->private/proto" list for the Workloads table. (#348)
+		portSet := map[string]bool{}
+		portList := make([]string, 0, len(c.Ports))
+		for _, p := range c.Ports {
+			entry := fmt.Sprintf("%d/%s", p.PrivatePort, p.Type)
+			if p.PublicPort != 0 {
+				entry = fmt.Sprintf("%d->%d/%s", p.PublicPort, p.PrivatePort, p.Type)
+			}
+			if !portSet[entry] {
+				portSet[entry] = true
+				portList = append(portList, entry)
+			}
+		}
+		sort.Strings(portList)
 		rows = append(rows, containerRow{
 			Name: name, Image: c.Image, State: c.State,
 			Status: c.Status, RestartCount: restartCount,
+			Ports: strings.Join(portList, ", "),
 		})
 		if _, ok := counts[c.State]; ok {
 			counts[c.State]++
@@ -290,7 +314,7 @@ type dockerStatsResponse struct {
 
 type cpuStats struct {
 	CPUUsage struct {
-		TotalUsage  int64 `json:"total_usage"`
+		TotalUsage  int64   `json:"total_usage"`
 		PercpuUsage []int64 `json:"percpu_usage"`
 	} `json:"cpu_usage"`
 	SystemUsage int64 `json:"system_cpu_usage"`

@@ -28,7 +28,7 @@ dropping a YAML file — no agent restart required. See
 | Profile | File | Covers |
 |---------|------|--------|
 | `host`    | `00-linux-host.yaml`     | CPU load, memory, disk, uptime, OS, kernel, security-update count |
-| `docker`  | `10-docker.yaml`         | Container summary + per-container stats via `/var/run/docker.sock` |
+| `docker`  | `10-docker.yaml`         | Container summary + per-container stats + published ports via `/var/run/docker.sock` |
 | `systemd` | `20-systemd.yaml`        | Resource usage of named systemd units (cgroup-driven) |
 | `icosys`  | `30-icosys-actuator.yaml` | ICOSYS Spring Boot services (icglb 8010, icbpm 8020, icdms 8030, ichrm 8040, icasm 8050, icwfl 8060) — structured `runtime_instances`, health, version, git commit |
 | `mysql`   | `40-mysql.yaml`          | MySQL liveness + version (no auth needed for version) |
