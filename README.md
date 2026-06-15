@@ -98,11 +98,12 @@ execution, ever.**
   need their own opt-in; destructive ones additionally require an operator 2FA
   step-up on the ICLIC side, and every request is audited.
 
-**Status:** transport foundation (request/response + capability advertisement).
-On-demand verbs — live log tail, process list, disk usage, listening ports, and
-opt-in management actions — roll out in phases. Tracking: ICLIC #40.
+**Status:** read verbs shipped — `logs.tail` (live/follow), `proc.top`,
+`disk.df`, `net.listen`. Write/management verbs (restart/deploy/prune, 2FA-gated
+on the ICLIC side) are the next phase. Tracking: ICLIC #40 · #337 (read) · #339
+(write).
 
-Planned opt-in config (only what you list is ever served):
+Opt-in config (only what you list is ever served):
 
 ```yaml
 # /etc/iclic-host-agent/control.yaml   (absent = the channel serves nothing)
@@ -111,16 +112,16 @@ control:
   logs:
     enabled: true
     default_lines: 200
-    max_lines: 2000           # the agent caps this; ICLIC cannot exceed it
-    sources:                  # logical name -> concrete source (flexible per host)
-      icglb: { type: docker, container: icosys-icglb }
-      nginx: { type: file,   path: /var/log/nginx/error.log }
-  top:  { enabled: true }     # process list
-  df:   { enabled: true }     # disk usage
-  ports: { enabled: true }    # listening ports + owning service
-  actions:                    # write verbs: default OFF, enabled one by one
-    restart: { enabled: true, services: [icglb] }
-    deploy:  { enabled: false }
+    max_lines: 2000            # the agent caps this; ICLIC cannot exceed it
+    max_follow_seconds: 600    # live tails auto-stop after this
+    sources:                   # logical name -> concrete source (flexible per host)
+      icglb: { type: docker,   container: icosys-icglb }
+      nginx: { type: file,     path: /var/log/nginx/error.log }
+      # iclic: { type: journald, unit: iclic-backend }
+  top:   { enabled: true }     # proc.top  — process list
+  df:    { enabled: true }     # disk.df   — filesystem usage
+  ports: { enabled: true }     # net.listen — listening ports + owning service
+  # actions: (write verbs — restart/deploy/prune) land with ICLIC #339
 ```
 
 ## Install (first time, per host)
