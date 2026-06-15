@@ -11,7 +11,10 @@ service:
   version: { exec: ["/opt/tleasy/bin/version"], parse: trimmed }
   metrics:
     - { key: queue_depth, exec: ["/opt/tleasy/bin/queue-depth"], parse: int }
-  # logs: { type: file, path: /opt/wildfly/standalone/log/server.log }   # control channel (Faz 4d-2)
+  # logs: makes this service tailable on-demand via the control channel under the
+  # source name = the service name ("tleasy"). Only served when control.yaml has
+  # control.enabled + logs.enabled (the opt-in still governs). type: file | docker | journald.
+  logs: { type: file, path: /opt/wildfly/standalone/log/server.log }
 
 # WildFly / Tomcat / bare binary — no docker — is just different axes:
 #   up: { systemd: tleasy.service }     (or { tcp: 8080 })
