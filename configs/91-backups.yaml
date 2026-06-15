@@ -1,0 +1,13 @@
+# Backup freshness — seconds since the newest backup file matching the glob.
+# Alert on a value greater than your backup interval (e.g. > 93600 = 26h for a
+# daily dump) or -1 (no backup found at all). Edit the glob per environment. (#40 W1)
+- id: backup_age_mysql
+  primitive: file.newest_age_seconds
+  args: { glob: /opt/iclic/mysql/backups/*.sql.gz }
+  output_key: backup_age_mysql
+
+# Example — a second backup set:
+# - id: backup_age_nexus
+#   primitive: file.newest_age_seconds
+#   args: { glob: /opt/devops/backups/nexus/*.tar.gz }
+#   output_key: backup_age_nexus
