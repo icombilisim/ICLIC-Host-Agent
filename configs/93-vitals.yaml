@@ -1,0 +1,14 @@
+# Disk I/O + network throughput (rates; sampled ~1s apart). Aggregates real
+# disks (partitions + loop/dm/ram excluded) and real interfaces (lo + veth/docker/
+# bridges excluded). Each value is a map — disk: { read_mbps, write_mbps, iops },
+# net: { rx_mbps, tx_mbps, rx_errors, tx_errors }. Linux-only (/proc); omitted
+# elsewhere. (#40 W1)
+- id: disk_io
+  primitive: procfs.diskstats
+  args: { sample_sec: 1 }
+  output_key: disk_io
+
+- id: net_io
+  primitive: procfs.netdev
+  args: { sample_sec: 1 }
+  output_key: net_io
