@@ -1,0 +1,14 @@
+# TLS certificate expiry — days remaining for endpoints this host serves or
+# depends on. Catches cert-expiry outages early; alert on a low value (e.g. < 14,
+# negative = already expired). Edit for your environment, one binding per cert.
+# Errors (port closed, no TLS) just omit the metric — safe to leave defaults. (#40 W1)
+- id: cert_days_local
+  primitive: ssl.cert_expiry
+  args: { host: 127.0.0.1, port: 443 }
+  output_key: cert_days_local
+
+# Example — an external domain this host fronts or calls (SNI selects the cert):
+# - id: cert_days_app
+#   primitive: ssl.cert_expiry
+#   args: { host: app.example.com, port: 443, server_name: app.example.com }
+#   output_key: cert_days_app

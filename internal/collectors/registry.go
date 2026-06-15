@@ -22,6 +22,7 @@ func DefaultRegistry() map[string]PrimitiveFunc {
 		"systemctl.is_active": systemctlIsActive,
 		"systemd.resources":   systemdResources,
 		"tcp.connect":         tcpConnect,
+		"ssl.cert_expiry":     sslCertExpiry,
 		"http.get":            httpGet,
 		"http.get_json":       httpGetJSON,
 		"file.stat":           fileStat,
