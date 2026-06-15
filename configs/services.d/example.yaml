@@ -1,0 +1,18 @@
+# Service definition (Faz 4d) — describe ANY app by composable axes; the agent
+# expands this into heartbeat metrics keyed <name>_up / <name>_health /
+# <name>_version / <name>_<metric>. Runtime-agnostic: each axis picks the probe
+# that fits (tcp | http | systemd | docker | exec). Copy + edit per host; one
+# file per service. See .claude/docs/agent-service-definitions.md. (#342)
+service:
+  name: tleasy
+  label: "TL Easy"
+  up: { tcp: 8080 }                                   # or {http: ...} | {systemd: unit} | {docker: name} | {exec: [...]}
+  health: { http: "http://127.0.0.1:8080/health", path: status }
+  version: { exec: ["/opt/tleasy/bin/version"], parse: trimmed }
+  metrics:
+    - { key: queue_depth, exec: ["/opt/tleasy/bin/queue-depth"], parse: int }
+  # logs: { type: file, path: /opt/wildfly/standalone/log/server.log }   # control channel (Faz 4d-2)
+
+# WildFly / Tomcat / bare binary — no docker — is just different axes:
+#   up: { systemd: tleasy.service }     (or { tcp: 8080 })
+#   logs: { type: file, path: /opt/tomcat/logs/catalina.out }

@@ -13,6 +13,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/icombilisim/iclic-host-agent/internal/collectors"
@@ -43,6 +44,7 @@ type Sender struct {
 	bearer       string
 	client       *http.Client
 	collectorDir string
+	servicesDir  string
 	registry     map[string]collectors.PrimitiveFunc
 }
 
@@ -54,7 +56,10 @@ func NewSender(cfg *config.Config, collectorDir string) *Sender {
 		bearer:       cfg.AgentKid + "." + cfg.AgentSecret,
 		client:       &http.Client{Timeout: 10 * time.Second},
 		collectorDir: collectorDir,
-		registry:     collectors.DefaultRegistry(),
+		// Service definitions live beside collectors.d (sibling services.d), so a
+		// dev override of the collector dir moves both together. (#342)
+		servicesDir: filepath.Join(filepath.Dir(collectorDir), "services.d"),
+		registry:    collectors.DefaultRegistry(),
 	}
 }
 
@@ -156,6 +161,15 @@ func (s *Sender) buildPayload(parent context.Context) Payload {
 			"err", err,
 		)
 		bindings = nil
+	}
+
+	// Service definitions (services.d/*.yaml) expand into the same Bindings and
+	// run in the same pass. A bad service file skips only the service metrics. (#342)
+	if svc, serr := collectors.LoadServiceDir(s.servicesDir); serr != nil {
+		slog.Warn("collectors.LoadServiceDir failed — skipping service metrics",
+			"dir", s.servicesDir, "err", serr)
+	} else {
+		bindings = append(bindings, svc...)
 	}
 
 	metrics := collectors.Run(ctx, bindings, s.registry, perBindingTimeout)
