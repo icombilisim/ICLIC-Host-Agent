@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.8.0...v0.9.0) (2026-06-15)
+
+
+### Features
+
+* **control:** add proc.top.live + cron.list read verbs ([#348](https://github.com/icombilisim/ICLIC-Host-Agent/issues/348)) ([cbfce78](https://github.com/icombilisim/ICLIC-Host-Agent/commit/cbfce7860ac185a2872cbe70047d3c89873b5320))
+* **control:** add proc.top.live + cron.list read verbs ([#348](https://github.com/icombilisim/ICLIC-Host-Agent/issues/348)) ([258ee36](https://github.com/icombilisim/ICLIC-Host-Agent/commit/258ee366128363501c03cd45ec5c2a64a0cff232))
+
 ## [0.8.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.7.0...v0.8.0) (2026-06-15)
 
 
