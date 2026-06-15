@@ -18,7 +18,9 @@ permissions:
 
 jobs:
   release:
-    runs-on: [self-hosted, linux, x64]
+    # GitHub-hosted: public repo can't use org self-hosted runners (security
+    # default); hosted runners are free for public repos. (#337)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 

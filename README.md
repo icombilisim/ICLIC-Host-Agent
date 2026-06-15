@@ -11,7 +11,10 @@ Every 60 seconds the agent runs the bindings declared in
 `/etc/iclic-host-agent/collectors.d/*.yaml`, packs the results into a
 single map, and POSTs them to ICLIC over HTTPS authenticated with a
 PAT-style bearer key (`Bearer <kid>.<secret>`) issued during enrolment.
-That is the entire job — push-only, no inbound port, no remote control.
+That heartbeat is push-only. Alongside it the agent keeps a single
+**outbound** control channel (see [Control channel](#control-channel-on-demand-opt-in))
+over which ICLIC can *request* on-demand data — the agent still never accepts an
+inbound connection, and serves only an opt-in, closed set of typed verbs.
 
 The collector engine is **YAML-driven**: 21 built-in primitives
 (`procfs.*`, `os.*`, `disk.*`, `exec`, `systemctl.*`, `systemd.resources`,
@@ -42,8 +45,10 @@ and Postgres uses `host,nginx,devops`, nothing else.
 - No shell execution beyond what's declared in YAML bindings
 - No file writes outside its own state file (`/var/lib/iclic-host-agent/state.json`)
 - No outbound traffic except to the configured ICLIC URL
-- No reading of `/etc/passwd`, `/home`, application data, or logs
-- No remote-control endpoint — agent **pushes**, never accepts inbound
+- No reading of `/etc/passwd`, `/home`, or application data
+- No inbound port and **no shell pass-through** — the control channel is an
+  agent-**dialed outbound** socket that serves only an opt-in, closed set of
+  typed verbs (default: OFF). ICLIC requests; the agent decides.
 
 ## Filesystem layout
 
@@ -70,6 +75,54 @@ and Postgres uses `host,nginx,devops`, nothing else.
 The agent runs as the `iclic-agent` system user. Versioned binaries +
 symlink mean rollback is one `ln -sfn` away.
 
+## Control channel (on-demand, opt-in)
+
+Beyond the periodic heartbeat the agent keeps a single **outbound** WebSocket to
+ICLIC (`wss://<iclic>/api/v1/server/control`, authenticated with the same
+`<kid>.<secret>` as the heartbeat). ICLIC rides this held socket to *request*
+on-demand data and actions; the agent is the authority and serves only a closed,
+typed set of verbs. **This is not a remote shell — there is no arbitrary command
+execution, ever.**
+
+- **Outbound only.** The agent dials ICLIC; no inbound port is opened. Works
+  behind NAT/firewalls, same trust path as the heartbeat.
+- **Request/response, the agent decides.** ICLIC sends a typed `req` (e.g. tail a
+  log, list processes); the agent validates it locally and streams `res` frames
+  back. Unknown or unpermitted verbs are refused, not run.
+- **Opt-in, default OFF.** Only verbs explicitly enabled in
+  `/etc/iclic-host-agent/control.yaml` (operator-owned) are served. With no such
+  file the agent connects but refuses every request.
+- **Capability advertisement.** On connect the agent reports its OS and the exact
+  verbs/targets it permits; the Fleet UI shows only what each host allows.
+- **Destructive actions gated.** Management verbs (restart, deploy, prune) each
+  need their own opt-in; destructive ones additionally require an operator 2FA
+  step-up on the ICLIC side, and every request is audited.
+
+**Status:** transport foundation (request/response + capability advertisement).
+On-demand verbs — live log tail, process list, disk usage, listening ports, and
+opt-in management actions — roll out in phases. Tracking: ICLIC #40.
+
+Planned opt-in config (only what you list is ever served):
+
+```yaml
+# /etc/iclic-host-agent/control.yaml   (absent = the channel serves nothing)
+control:
+  enabled: true
+  logs:
+    enabled: true
+    default_lines: 200
+    max_lines: 2000           # the agent caps this; ICLIC cannot exceed it
+    sources:                  # logical name -> concrete source (flexible per host)
+      icglb: { type: docker, container: icosys-icglb }
+      nginx: { type: file,   path: /var/log/nginx/error.log }
+  top:  { enabled: true }     # process list
+  df:   { enabled: true }     # disk usage
+  ports: { enabled: true }    # listening ports + owning service
+  actions:                    # write verbs: default OFF, enabled one by one
+    restart: { enabled: true, services: [icglb] }
+    deploy:  { enabled: false }
+```
+
 ## Install (first time, per host)
 
 After registering the server in ICLIC and generating a one-shot
@@ -80,7 +133,7 @@ curl -fsSL https://github.com/icombilisim/ICLIC-Host-Agent/releases/latest/downl
   -o /tmp/install.sh
 
 sudo TOKEN=<one-shot-token> \
-     ICLIC_URL=https://iclic.icombilisim.com \
+     ICLIC_URL=https://iclic.app \
      PROFILES=host,docker,systemd,icosys \
      bash /tmp/install.sh
 ```
@@ -167,6 +220,7 @@ N versions; the agent emits the latest it knows.
 ## Build from source
 
 ```bash
+go mod tidy           # first build after pulling: resolves coder/websocket + go.sum
 go build -o iclic-host-agent ./cmd/agent
 ```
 

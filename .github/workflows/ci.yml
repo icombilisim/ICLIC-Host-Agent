@@ -8,7 +8,10 @@ on:
 
 jobs:
   build:
-    runs-on: [self-hosted, linux, x64]
+    # GitHub-hosted: this repo is PUBLIC, and org self-hosted runners refuse
+    # public repos by default (fork PRs could run code on them). Hosted runners
+    # are free for public repos and carry no such risk. (#337)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
