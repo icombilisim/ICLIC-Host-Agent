@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.9.0...v0.10.0) (2026-06-15)
+
+
+### Features
+
+* **collectors:** include published container ports in docker.containers ([#348](https://github.com/icombilisim/ICLIC-Host-Agent/issues/348)) ([494dff9](https://github.com/icombilisim/ICLIC-Host-Agent/commit/494dff95918463a6fc772b7480707981dc781312))
+* **collectors:** include published container ports in docker.containers ([#348](https://github.com/icombilisim/ICLIC-Host-Agent/issues/348)) ([8315c52](https://github.com/icombilisim/ICLIC-Host-Agent/commit/8315c523059e849de815cec431abc512d3fbef15))
+
 ## [0.9.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.8.0...v0.9.0) (2026-06-15)
 
 
