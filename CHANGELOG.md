@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.7.0...v0.8.0) (2026-06-15)
+
+
+### Features
+
+* **agent:** advertise services in heartbeat ([#342](https://github.com/icombilisim/ICLIC-Host-Agent/issues/342), Faz 4d-3a) ([5bfde6e](https://github.com/icombilisim/ICLIC-Host-Agent/commit/5bfde6e1695183beaa0d40727081f26669e9eeea))
+
 ## [0.7.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.6.0...v0.7.0) (2026-06-15)
 
 
