@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.11.0...v0.12.0) (2026-06-17)
+
+
+### Features
+
+* **control:** add metrics.live verb streaming CPU/mem/load samples ([#379](https://github.com/icombilisim/ICLIC-Host-Agent/issues/379)) ([#21](https://github.com/icombilisim/ICLIC-Host-Agent/issues/21)) ([5478369](https://github.com/icombilisim/ICLIC-Host-Agent/commit/5478369f13508dec7d7e8552dc20c7d87a0577a4))
+
 ## [0.11.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.10.0...v0.11.0) (2026-06-17)
 
 
