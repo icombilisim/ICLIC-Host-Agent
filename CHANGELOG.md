@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.10.0...v0.11.0) (2026-06-17)
+
+
+### Features
+
+* **control:** add svc.status and docker.ps read verbs ([#375](https://github.com/icombilisim/ICLIC-Host-Agent/issues/375)) ([0f1ac75](https://github.com/icombilisim/ICLIC-Host-Agent/commit/0f1ac75da588ff33c1596d819f8a39dc5d12e71e))
+* **control:** add svc.status and docker.ps read verbs ([#375](https://github.com/icombilisim/ICLIC-Host-Agent/issues/375)) ([d3f5a93](https://github.com/icombilisim/ICLIC-Host-Agent/commit/d3f5a93150eb4acd26b44e8a6a21da21ff93ce7b))
+
 ## [0.10.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.9.0...v0.10.0) (2026-06-15)
 
 
