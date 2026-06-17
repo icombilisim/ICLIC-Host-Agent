@@ -194,6 +194,10 @@ func (s *session) handleReq(ctx context.Context, f reqFrame) {
 		s.spawn(ctx, f, s.netListenJob)
 	case "cron.list":
 		s.spawn(ctx, f, s.cronListJob)
+	case "svc.status":
+		s.spawn(ctx, f, s.svcStatusJob)
+	case "docker.ps":
+		s.spawn(ctx, f, s.dockerPsJob)
 	default:
 		// The agent serves only its closed verb set; everything else is refused. (#337)
 		s.write(ctx, errFrame(f.ReqID, "unknown_verb", 400))
@@ -298,6 +302,36 @@ func (s *session) cronListJob(ctx context.Context, f reqFrame) {
 		"echo; echo '### root crontab'; crontab -l 2>/dev/null; " +
 		"echo; echo '### periodic dirs'; ls -1 /etc/cron.hourly /etc/cron.daily /etc/cron.weekly /etc/cron.monthly 2>/dev/null"
 	s.streamCommand(ctx, f.ReqID, []string{"sh", "-c", script}, 2000)
+}
+
+// svcStatusJob serves svc.status: a snapshot of running + failed systemd service
+// units (Linux systemctl). --plain drops the legend/dots so the output is a clean
+// UNIT/LOAD/ACTIVE/SUB/DESCRIPTION table. (#375)
+func (s *session) svcStatusJob(ctx context.Context, f reqFrame) {
+	if !s.cfg.svcEnabled() {
+		s.bestEffort(errFrame(f.ReqID, "not_permitted", 403))
+		return
+	}
+	argv := []string{
+		"systemctl", "list-units", "--type=service",
+		"--state=running,failed", "--no-pager", "--no-legend", "--plain",
+	}
+	s.streamCommand(ctx, f.ReqID, argv, 1000)
+}
+
+// dockerPsJob serves docker.ps: a snapshot of all containers and their state
+// (Docker CLI), incl. stopped/unhealthy so restarts are visible. Fixed format,
+// no user input. (#375)
+func (s *session) dockerPsJob(ctx context.Context, f reqFrame) {
+	if !s.cfg.dockerEnabled() {
+		s.bestEffort(errFrame(f.ReqID, "not_permitted", 403))
+		return
+	}
+	argv := []string{
+		"docker", "ps", "-a",
+		"--format", "table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}",
+	}
+	s.streamCommand(ctx, f.ReqID, argv, 500)
 }
 
 // streamCommand runs a fixed argv (no shell) and streams its stdout lines back

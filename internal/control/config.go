@@ -34,10 +34,12 @@ type ControlConfig struct {
 type sectionControl struct {
 	Enabled bool       `yaml:"enabled"`
 	Logs    logsConfig `yaml:"logs"`
-	Top     simpleVerb `yaml:"top"`   // proc.top + proc.top.live
-	Df      simpleVerb `yaml:"df"`    // disk.df
-	Ports   simpleVerb `yaml:"ports"` // net.listen
-	Cron    simpleVerb `yaml:"cron"`  // cron.list
+	Top     simpleVerb `yaml:"top"`    // proc.top + proc.top.live
+	Df      simpleVerb `yaml:"df"`     // disk.df
+	Ports   simpleVerb `yaml:"ports"`  // net.listen
+	Cron    simpleVerb `yaml:"cron"`   // cron.list
+	Svc     simpleVerb `yaml:"svc"`    // svc.status
+	Docker  simpleVerb `yaml:"docker"` // docker.ps
 }
 
 // simpleVerb is an opt-in toggle for a read verb that needs no source map.
@@ -124,10 +126,12 @@ func (c ControlConfig) logsEnabled() bool {
 	return c.Control.Enabled && c.Control.Logs.Enabled && len(c.Control.Logs.Sources) > 0
 }
 
-func (c ControlConfig) topEnabled() bool   { return c.Control.Enabled && c.Control.Top.Enabled }
-func (c ControlConfig) dfEnabled() bool    { return c.Control.Enabled && c.Control.Df.Enabled }
-func (c ControlConfig) portsEnabled() bool { return c.Control.Enabled && c.Control.Ports.Enabled }
-func (c ControlConfig) cronEnabled() bool  { return c.Control.Enabled && c.Control.Cron.Enabled }
+func (c ControlConfig) topEnabled() bool    { return c.Control.Enabled && c.Control.Top.Enabled }
+func (c ControlConfig) dfEnabled() bool     { return c.Control.Enabled && c.Control.Df.Enabled }
+func (c ControlConfig) portsEnabled() bool  { return c.Control.Enabled && c.Control.Ports.Enabled }
+func (c ControlConfig) cronEnabled() bool   { return c.Control.Enabled && c.Control.Cron.Enabled }
+func (c ControlConfig) svcEnabled() bool    { return c.Control.Enabled && c.Control.Svc.Enabled }
+func (c ControlConfig) dockerEnabled() bool { return c.Control.Enabled && c.Control.Docker.Enabled }
 
 // source resolves a logical name to its concrete source, honouring the allow-list.
 func (c ControlConfig) source(name string) (logSource, bool) {
@@ -153,6 +157,12 @@ func (c ControlConfig) verbs() []string {
 	}
 	if c.cronEnabled() {
 		verbs = append(verbs, "cron.list")
+	}
+	if c.svcEnabled() {
+		verbs = append(verbs, "svc.status")
+	}
+	if c.dockerEnabled() {
+		verbs = append(verbs, "docker.ps")
 	}
 	return verbs
 }
