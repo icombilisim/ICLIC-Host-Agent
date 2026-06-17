@@ -198,6 +198,8 @@ func (s *session) handleReq(ctx context.Context, f reqFrame) {
 		s.spawn(ctx, f, s.svcStatusJob)
 	case "docker.ps":
 		s.spawn(ctx, f, s.dockerPsJob)
+	case "metrics.live":
+		s.spawn(ctx, f, s.metricsLiveJob)
 	default:
 		// The agent serves only its closed verb set; everything else is refused. (#337)
 		s.write(ctx, errFrame(f.ReqID, "unknown_verb", 400))
@@ -332,6 +334,55 @@ func (s *session) dockerPsJob(ctx context.Context, f reqFrame) {
 		"--format", "table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}",
 	}
 	s.streamCommand(ctx, f.ReqID, argv, 500)
+}
+
+// metricsLiveJob serves metrics.live: a JSON vitals sample (CPU%/mem%/load1)
+// per tick, streamed until cancel or the live ceiling. CPU% is a /proc/stat
+// delta, so the first sample is emitted one interval in. Same live-stream cap
+// as proc.top.live. (#379)
+func (s *session) metricsLiveJob(ctx context.Context, f reqFrame) {
+	if !s.cfg.metricsEnabled() {
+		s.bestEffort(errFrame(f.ReqID, "not_permitted", 403))
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, maxLiveStreamSeconds*time.Second)
+	defer cancel()
+	delay := clampInt(argInt(f.Args, "interval", 2), 1, 10)
+	prev, err := readCPUSample()
+	if err != nil {
+		s.bestEffort(errFrame(f.ReqID, "metrics_unavailable", 500))
+		return
+	}
+	ticker := time.NewTicker(time.Duration(delay) * time.Second)
+	defer ticker.Stop()
+	seq := 0
+	for {
+		select {
+		case <-ctx.Done():
+			s.bestEffort(eofFrame(f.ReqID))
+			return
+		case <-ticker.C:
+			cur, sampleErr := readCPUSample()
+			if sampleErr != nil {
+				continue
+			}
+			sample := liveMetrics{
+				Ts:    time.Now().UnixMilli(),
+				CPU:   cpuPct(prev, cur),
+				Mem:   readMemPct(),
+				Load1: readLoad1(),
+			}
+			prev = cur
+			payload, marshalErr := json.Marshal(sample)
+			if marshalErr != nil {
+				continue
+			}
+			if writeErr := s.write(ctx, resFrame(f.ReqID, seq, string(payload))); writeErr != nil {
+				return
+			}
+			seq++
+		}
+	}
 }
 
 // streamCommand runs a fixed argv (no shell) and streams its stdout lines back
