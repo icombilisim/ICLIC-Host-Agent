@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.12.0...v0.13.0) (2026-06-17)
+
+
+### Features
+
+* **metrics:** add cpu_used_pct to the heartbeat for metric history ([#388](https://github.com/icombilisim/ICLIC-Host-Agent/issues/388)) ([#23](https://github.com/icombilisim/ICLIC-Host-Agent/issues/23)) ([6bdb9fe](https://github.com/icombilisim/ICLIC-Host-Agent/commit/6bdb9fea00c1abb7123f3c969ad1927f91d8625e))
+
 ## [0.12.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.11.0...v0.12.0) (2026-06-17)
 
 
