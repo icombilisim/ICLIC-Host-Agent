@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.13.0...v0.13.1) (2026-06-17)
+
+
+### Bug Fixes
+
+* add --version flag, fail-fast on unknown args, single-instance lock ([#26](https://github.com/icombilisim/ICLIC-Host-Agent/issues/26)) ([b974281](https://github.com/icombilisim/ICLIC-Host-Agent/commit/b9742811b30f63db817b75526b97e28628e4d4ab)), closes [#25](https://github.com/icombilisim/ICLIC-Host-Agent/issues/25)
+
 ## [0.13.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.12.0...v0.13.0) (2026-06-17)
 
 
