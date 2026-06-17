@@ -8,7 +8,74 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+// CPU busy% needs two /proc/stat reads; we keep the previous sample so each
+// heartbeat reports utilization over the interval since the last one. (#388)
+var (
+	cpuPrevMu    sync.Mutex
+	cpuPrevTotal uint64
+	cpuPrevIdle  uint64
+	cpuPrevSet   bool
+)
+
+// procfsCPUUsedPct returns busy CPU % (0..100, all cores) over the interval
+// since the previous call. The first call has no baseline and returns 0. (#388)
+func procfsCPUUsedPct(_ context.Context, _ map[string]any) (any, error) {
+	total, idle, err := readProcStatCPU()
+	if err != nil {
+		return nil, err
+	}
+	cpuPrevMu.Lock()
+	defer cpuPrevMu.Unlock()
+	if !cpuPrevSet {
+		cpuPrevSet = true
+		cpuPrevTotal, cpuPrevIdle = total, idle
+		return 0.0, nil
+	}
+	dt := float64(total - cpuPrevTotal)
+	di := float64(idle - cpuPrevIdle)
+	cpuPrevTotal, cpuPrevIdle = total, idle
+	if dt <= 0 {
+		return 0.0, nil
+	}
+	pct := (dt - di) * 100.0 / dt
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	return roundTo(pct, 1), nil
+}
+
+// readProcStatCPU sums the aggregate "cpu" line of /proc/stat: total is every
+// column, idle counts idle+iowait.
+func readProcStatCPU() (uint64, uint64, error) {
+	data, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return 0, 0, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.HasPrefix(line, "cpu ") {
+			continue
+		}
+		var total, idle uint64
+		for i, f := range strings.Fields(line)[1:] {
+			v, perr := strconv.ParseUint(f, 10, 64)
+			if perr != nil {
+				continue
+			}
+			total += v
+			if i == 3 || i == 4 { // idle, iowait
+				idle += v
+			}
+		}
+		return total, idle, nil
+	}
+	return 0, 0, fmt.Errorf("no aggregate cpu line in /proc/stat")
+}
 
 // procfsLoadavg reads /proc/loadavg and returns the requested load window.
 //

@@ -23,6 +23,12 @@
   primitive: procfs.cpu_count
   args: {}
   output_key: cpu_count
+# CPU busy % over the heartbeat interval (delta of /proc/stat) — feeds the
+# fleet metric-history chart. (#388)
+- id: cpu_used_pct
+  primitive: procfs.cpu_used_pct
+  args: {}
+  output_key: cpu_used_pct
 
 # Memory — used % is the headline; absolute MB for context
 - id: mem_used_pct
