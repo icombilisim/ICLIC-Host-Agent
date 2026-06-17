@@ -8,6 +8,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof" // exposed on a private loopback mux, see startPprof
@@ -24,10 +26,22 @@ import (
 )
 
 const (
-	exitOK       = 0
-	exitConfig   = 2
-	exitInternal = 3
+	exitOK             = 0
+	exitUsage          = 2
+	exitConfig         = 2
+	exitInternal       = 3
+	exitAlreadyRunning = 4
 )
+
+// defaultLockFile lives in the agent's writable state dir (created 0700 by the
+// installer, owned by the service user) so the single-instance lock survives in
+// the strict-sandbox systemd unit. Override with $ICLIC_AGENT_LOCK_FILE. (#25)
+const defaultLockFile = "/var/lib/iclic-host-agent/agent.lock"
+
+// instanceLockFile is kept alive for the whole process lifetime: if the *os.File
+// were garbage-collected its finalizer would close the fd and release the flock.
+// The kernel drops the lock automatically when the process exits. (#25)
+var instanceLockFile *os.File
 
 // defaultCollectorDir is overridable via $ICLIC_COLLECTOR_DIR for dev runs.
 const defaultCollectorDir = "/etc/iclic-host-agent/collectors.d"
@@ -46,8 +60,19 @@ const defaultGoMemLimitBytes = 384 * 1024 * 1024
 const defaultPprofAddr = "127.0.0.1:6133"
 
 func main() {
+	// Handle --version BEFORE any setup. The binary takes no operational flags
+	// (config comes from env / config.json), so an unknown flag like --version
+	// used to be silently ignored and the agent booted anyway — that is how a
+	// diagnostic "version check" spawned permanent duplicate agents. (#25)
+	handleCLIArgs()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
+
+	// Refuse to start a second agent on the same host — orphans left after an
+	// upgrade or a stray manual run race heartbeats and corrupt the reported
+	// version in the Fleet UI. (#25)
+	acquireSingleInstanceLock()
 
 	applyMemoryLimit()
 	startPprof()
@@ -105,6 +130,50 @@ func main() {
 			}
 		}
 	}
+}
+
+// handleCLIArgs parses command-line flags. The agent has no operational flags,
+// but it MUST answer --version explicitly and reject anything it does not
+// recognise — flag.ExitOnError fails fast on an unknown flag instead of letting
+// the process fall through and boot a stray agent. Also accepts the bare
+// `iclic-host-agent version` subcommand form. (#25)
+func handleCLIArgs() {
+	fs := flag.NewFlagSet("iclic-host-agent", flag.ExitOnError)
+	versionFlag := fs.Bool("version", false, "print version and exit")
+	fs.BoolVar(versionFlag, "v", false, "print version and exit (shorthand)")
+	_ = fs.Parse(os.Args[1:]) // ExitOnError → unknown flags exit(2) with usage
+
+	if *versionFlag || fs.Arg(0) == "version" {
+		fmt.Printf("iclic-host-agent %s\n", heartbeat.AgentVersion)
+		os.Exit(exitOK)
+	}
+	// Any leftover positional argument is unsupported — fail rather than boot.
+	if fs.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "iclic-host-agent: unexpected argument %q\n", fs.Arg(0))
+		os.Exit(exitUsage)
+	}
+}
+
+// acquireSingleInstanceLock takes an exclusive, non-blocking advisory lock so
+// only one agent runs per host. A duplicate (orphan after upgrade, a second
+// systemd start, or a manual run) exits immediately instead of racing
+// heartbeats. Best-effort in dev: if the lock dir is missing/unwritable we warn
+// and continue; in prod the installer-created state dir always exists. (#25)
+func acquireSingleInstanceLock() {
+	path := os.Getenv("ICLIC_AGENT_LOCK_FILE")
+	if path == "" {
+		path = defaultLockFile
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		slog.Warn("single-instance lock unavailable, continuing", "path", path, "err", err)
+		return
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		slog.Error("another agent instance is already running, exiting", "lock", path, "err", err)
+		os.Exit(exitAlreadyRunning)
+	}
+	instanceLockFile = f // hold the fd open for the process lifetime
 }
 
 // applyMemoryLimit honours $GOMEMLIMIT if set (including the runtime's own
