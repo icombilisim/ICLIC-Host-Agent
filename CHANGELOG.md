@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.13.1...v0.14.0) (2026-06-19)
+
+
+### Features
+
+* **metrics:** report swap usage via procfs.swap ([#28](https://github.com/icombilisim/ICLIC-Host-Agent/issues/28)) ([#29](https://github.com/icombilisim/ICLIC-Host-Agent/issues/29)) ([83c6f73](https://github.com/icombilisim/ICLIC-Host-Agent/commit/83c6f734ce34f7c301814e6e9fb621402b7523ad))
+
 ## [0.13.1](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.13.0...v0.13.1) (2026-06-17)
 
 
