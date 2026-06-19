@@ -48,6 +48,16 @@
   args: { field: available_mb }
   output_key: mem_available_mb
 
+# Swap — used % is the headline (0 when no swap configured)
+- id: swap_used_pct
+  primitive: procfs.swap
+  args: { field: used_pct }
+  output_key: swap_used_pct
+- id: swap_total_mb
+  primitive: procfs.swap
+  args: { field: total_mb }
+  output_key: swap_total_mb
+
 # Disk — full per-mount list AND the worst-mount % (backend uses the latter
 # for the one-line "disk=72%" summary)
 - id: disks
