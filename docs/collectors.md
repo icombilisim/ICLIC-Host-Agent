@@ -44,6 +44,15 @@ Reads `/proc/meminfo`. "Used" follows the modern Linux convention
 |-------|--------|------------|-------------|
 | field | string | `used_pct` | `used_pct` / `total_mb` / `used_mb` / `free_mb` / `available_mb` |
 
+### procfs.swap
+
+Reads `/proc/meminfo` (`SwapTotal` / `SwapFree`). A host with no swap configured
+reports `0` for `used_pct` so the metric is always present.
+
+| Arg   | Type   | Default    | Description |
+|-------|--------|------------|-------------|
+| field | string | `used_pct` | `used_pct` / `total_mb` / `used_mb` |
+
 ### procfs.cpu_count
 
 Returns the number of online logical CPUs (int).

@@ -162,6 +162,37 @@ func procfsMemory(_ context.Context, args map[string]any) (any, error) {
 	}
 }
 
+// procfsSwap reads /proc/meminfo and returns one swap summary field.
+//
+// Args:
+//
+//	field: "used_pct" (default) | "total_mb" | "used_mb"
+//
+// A host with no swap configured (SwapTotal=0) reports 0 used_pct so the
+// metric is always present and never divides by zero.
+func procfsSwap(_ context.Context, args map[string]any) (any, error) {
+	fields, err := readMeminfoKB()
+	if err != nil {
+		return nil, err
+	}
+	field, _ := args["field"].(string)
+	total := fields["SwapTotal"]
+	used := total - fields["SwapFree"]
+	switch field {
+	case "", "used_pct":
+		if total == 0 {
+			return 0.0, nil
+		}
+		return roundTo(float64(used)*100.0/float64(total), 1), nil
+	case "total_mb":
+		return total / 1024, nil
+	case "used_mb":
+		return used / 1024, nil
+	default:
+		return nil, fmt.Errorf("unknown field %q", field)
+	}
+}
+
 // procfsCPUCount returns the number of online logical CPUs as reported by
 // /proc/cpuinfo. Useful for normalizing load against capacity client-side.
 func procfsCPUCount(_ context.Context, _ map[string]any) (any, error) {

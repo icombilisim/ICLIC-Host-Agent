@@ -10,6 +10,7 @@ func DefaultRegistry() map[string]PrimitiveFunc {
 		"procfs.loadavg":          procfsLoadavg,
 		"procfs.uptime":           procfsUptime,
 		"procfs.memory":           procfsMemory,
+		"procfs.swap":             procfsSwap,
 		"procfs.cpu_count":        procfsCPUCount,
 		"procfs.cpu_used_pct":     procfsCPUUsedPct,
 		"procfs.diskstats":        procfsDiskstats,
