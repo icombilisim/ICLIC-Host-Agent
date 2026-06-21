@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.14.0...v0.15.0) (2026-06-21)
+
+
+### Features
+
+* **heartbeat:** apply server-driven interval at runtime via ticker reset ([#31](https://github.com/icombilisim/ICLIC-Host-Agent/issues/31)) ([f5f5a46](https://github.com/icombilisim/ICLIC-Host-Agent/commit/f5f5a4660a56e423cfab081fbb9e3b7fa9528e10))
+
 ## [0.14.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.13.1...v0.14.0) (2026-06-19)
 
 
