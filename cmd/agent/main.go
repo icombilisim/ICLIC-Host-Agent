@@ -112,11 +112,17 @@ func main() {
 	// ICLIC requests, the agent serves its closed verb set. (#40 Faz 4a)
 	go control.RunControlChannel(ctx, cfg, heartbeat.AgentVersion)
 
-	ticker := time.NewTicker(time.Duration(cfg.HeartbeatIntervalSeconds) * time.Second)
+	// Interval is server-drivable: ICLIC echoes its desired cadence on each
+	// heartbeat reply and we Reset the ticker when it changes, so the operator
+	// can speed up/slow down detection centrally without touching the host. (#476)
+	interval := cfg.HeartbeatIntervalSeconds
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
-	if err := sender.SendOnce(ctx); err != nil {
+	if desired, err := sender.SendOnce(ctx); err != nil {
 		slog.Warn("initial heartbeat failed", "err", err)
+	} else {
+		applyInterval(ticker, &interval, desired)
 	}
 
 	for {
@@ -125,11 +131,25 @@ func main() {
 			slog.Info("agent stopped")
 			os.Exit(exitOK)
 		case <-ticker.C:
-			if err := sender.SendOnce(ctx); err != nil {
+			if desired, err := sender.SendOnce(ctx); err != nil {
 				slog.Warn("heartbeat failed", "err", err)
+			} else {
+				applyInterval(ticker, &interval, desired)
 			}
 		}
 	}
+}
+
+// applyInterval resets the heartbeat ticker when ICLIC asks for a different
+// cadence than the one currently in effect. A non-positive desired value means
+// the server didn't specify one, so the current interval is kept. (#476)
+func applyInterval(ticker *time.Ticker, current *int, desired int) {
+	if desired <= 0 || desired == *current {
+		return
+	}
+	*current = desired
+	ticker.Reset(time.Duration(desired) * time.Second)
+	slog.Info("heartbeat interval updated by server", "interval_sec", desired)
 }
 
 // handleCLIArgs parses command-line flags. The agent has no operational flags,

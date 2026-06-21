@@ -65,19 +65,21 @@ func NewSender(cfg *config.Config, collectorDir string) *Sender {
 
 // SendOnce builds a payload and POSTs it to /api/v1/server/{serverId}/heartbeat.
 // Errors are returned but not retried — the caller's ticker will retry on the
-// next interval.
-func (s *Sender) SendOnce(ctx context.Context) error {
+// next interval. The returned int is ICLIC's desired heartbeat interval in
+// seconds (0 when the server didn't specify one); the caller resets its ticker
+// when it changes, so ICLIC can centrally drive the cadence. (#476)
+func (s *Sender) SendOnce(ctx context.Context) (int, error) {
 	payload := s.buildPayload(ctx)
 	hostPayload := payload.withoutMetric("runtime_instances")
 	body, err := json.Marshal(hostPayload)
 	if err != nil {
-		return fmt.Errorf("marshal payload: %w", err)
+		return 0, fmt.Errorf("marshal payload: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/api/v1/server/%s/heartbeat", s.cfg.ICLICUrl, s.cfg.ServerID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("build request: %w", err)
+		return 0, fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "iclic-host-agent/"+AgentVersion)
@@ -85,13 +87,22 @@ func (s *Sender) SendOnce(ctx context.Context) error {
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("post heartbeat: %w", err)
+		return 0, fmt.Errorf("post heartbeat: %w", err)
 	}
 	defer drainAndClose(resp.Body)
 
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("heartbeat rejected: status=%d body=%s", resp.StatusCode, string(respBody))
+		return 0, fmt.Errorf("heartbeat rejected: status=%d body=%s", resp.StatusCode, string(respBody))
+	}
+	// Best-effort: read the server's desired interval. A missing or non-JSON
+	// body just leaves it 0 (caller keeps the current cadence). (#476)
+	desiredInterval := 0
+	if respBody, rerr := io.ReadAll(io.LimitReader(resp.Body, 4096)); rerr == nil {
+		var hbResp heartbeatResponse
+		if json.Unmarshal(respBody, &hbResp) == nil {
+			desiredInterval = hbResp.NextHeartbeatAfterSeconds
+		}
 	}
 	runtimeCount := s.sendRuntimeSignals(ctx, payload)
 	// INFO so journalctl shows the operator a heartbeat actually went through
@@ -101,7 +112,14 @@ func (s *Sender) SendOnce(ctx context.Context) error {
 		"binding_count", payload.metricCount(),
 		"runtime_signal_count", runtimeCount,
 	)
-	return nil
+	return desiredInterval, nil
+}
+
+// heartbeatResponse is the subset of ICLIC's heartbeat reply the agent acts on.
+// ICLIC echoes the desired cadence (nextHeartbeatAfterSeconds) so the operator
+// can change detection speed centrally without touching the agent host. (#476)
+type heartbeatResponse struct {
+	NextHeartbeatAfterSeconds int `json:"nextHeartbeatAfterSeconds"`
 }
 
 // Payload is the wire shape ICLIC accepts on
