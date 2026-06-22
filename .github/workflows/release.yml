@@ -79,6 +79,9 @@ jobs:
         run: |
           cp installer/install.sh dist/install.sh
           cp installer/iclic-host-agent.service dist/iclic-host-agent.service
+          cp installer/iclic-host-agent-updater.sh dist/iclic-host-agent-updater.sh
+          cp installer/iclic-host-agent-updater.service dist/iclic-host-agent-updater.service
+          cp installer/iclic-host-agent-updater.timer dist/iclic-host-agent-updater.timer
 
       - name: Compute SHA256SUMS
         run: |
@@ -89,6 +92,9 @@ jobs:
             configs.tar.gz \
             install.sh \
             iclic-host-agent.service \
+            iclic-host-agent-updater.sh \
+            iclic-host-agent-updater.service \
+            iclic-host-agent-updater.timer \
             > SHA256SUMS
 
       - name: Sign SHA256SUMS (Ed25519)
@@ -124,6 +130,9 @@ jobs:
             dist/configs.tar.gz \
             dist/install.sh \
             dist/iclic-host-agent.service \
+            dist/iclic-host-agent-updater.sh \
+            dist/iclic-host-agent-updater.service \
+            dist/iclic-host-agent-updater.timer \
             dist/SHA256SUMS \
             dist/SHA256SUMS.sig \
             --clobber

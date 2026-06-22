@@ -31,6 +31,11 @@ English is the source of truth; `docs/tr/` mirrors it. Before changing code, rea
   without `AGENT_RELEASE_SIGNING_KEY`; `install.sh` aborts on a signature
   mismatch. Never publish unsigned or weaken `internal/release.Verify` /
   `verify_signature` — auto-update trusts this gate. See `deployment.md` §14.
+- **The agent never updates itself.** It records ICLIC's `desiredAgentVersion`
+  to a state file; the **root** `iclic-host-agent-updater` (nightly timer) is the
+  only thing that installs — strict signature verify, health-gate, auto-rollback.
+  Keep that privilege split: don't give the unprivileged agent install/restart
+  powers. See `deployment.md` §15. (#43)
 - **Versioned binaries.** Rollback = retarget the `current` symlink; the previous
   binary stays on disk. Don't break that on-disk layout.
 - **Bump `ProtocolVersion`** only on a breaking wire change (see `protocol.md`);

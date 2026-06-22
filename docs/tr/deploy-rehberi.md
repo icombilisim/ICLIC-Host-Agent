@@ -392,6 +392,41 @@ imzasız kalır ve `install.sh` TOFU modunda çalışır — anahtar gömülüp 
 > sinyali, root `iclic-host-agent-updater.timer` (gecelik 01:00 UTC, health-gate +
 > auto-rollback) ve ICLIC tarafı halka orkestrasyonu (canary → prod, hatada durdur).
 
+## 15. Gecelik oto-güncelleme (Faz 3)
+
+Enroll olduktan sonra host, ICLIC'in istediği sürümde kendini tutar — rutin
+yükseltme için `deploy-all.sh` gerekmez. Akış **server-authoritative** ve
+**privilege-separated**:
+
+1. ICLIC sunucu için bir `desiredAgentVersion` çözer (ring hedefi veya per-server
+   pin) ve her heartbeat'te döndürür.
+2. Yetkisiz agent bunu `/var/lib/iclic-host-agent/desired-version`'a yazar.
+3. **Root** `iclic-host-agent-updater.timer` gecelik **01:00 UTC**'de çalışır
+   (`RandomizedDelaySec=900` fleet'i yayar; bozuk release tüm filoyu aynı anda
+   düşüremez). `iclic-host-agent-updater` çalışır ve:
+   - istenen sürümü kuruluyla karşılaştırır; eşitse çıkar;
+   - `install.sh`'i **`STRICT_VERIFY=1`** ile çalıştırır (imza zorunlu — bkz §14);
+   - **health-gate:** `HEALTH_TIMEOUT` (180 sn) içinde journal'da `heartbeat
+     accepted` görünmeli; görünürse tamam;
+   - görünmezse önceki binary'ye **rollback** (`ln -sfn` + restart).
+
+Agent kendini asla güncellemez — sadece direktifi yazar; root timer uygular. Bir
+ring'i ilerletmek için operatör ICLIC'te hedef sürümü set eder
+(`PUT /api/v1/admin/agent-release-targets/{environment}`); per-server pin
+(canary/hold) sunucu kaydında.
+
+```bash
+# Host'ta incele / sür
+cat /var/lib/iclic-host-agent/desired-version      # ICLIC ne istedi
+systemctl list-timers iclic-host-agent-updater     # sonraki çalışma
+systemctl start iclic-host-agent-updater.service   # şimdi uygula (01:00'ı bekleme)
+journalctl -u iclic-host-agent-updater -n 50       # son çalışma ne yaptı
+```
+
+Updater, istenen release'in **imzalı** olmasını şart koşar; doğrulanamayan release
+reddedilir (fail-closed) — host, kimliğini doğrulayamadığı bir şeyi kurmaktansa
+yerinde kalır. Manuel fleet push için `deploy-all.sh` durur.
+
 ---
 
 **Son not:** Bu dokümanın canlı kalması için, her release veya akış değişikliğinde
