@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.15.0...v0.16.0) (2026-06-22)
+
+
+### Features
+
+* Ed25519-sign releases and verify before install ([#35](https://github.com/icombilisim/ICLIC-Host-Agent/issues/35)) ([#36](https://github.com/icombilisim/ICLIC-Host-Agent/issues/36)) ([c832935](https://github.com/icombilisim/ICLIC-Host-Agent/commit/c83293524f89bd9086b07aea6adea3fc95bcb268))
+
 ## [0.15.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.14.0...v0.15.0) (2026-06-21)
 
 
