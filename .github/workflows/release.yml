@@ -91,6 +91,29 @@ jobs:
             iclic-host-agent.service \
             > SHA256SUMS
 
+      - name: Sign SHA256SUMS (Ed25519)
+        # Signs SHA256SUMS so hosts can prove a release is authentic (it came
+        # from us), not merely intact. The auto-updater refuses any release whose
+        # signature does not verify, so an unsigned release is useless — fail the
+        # build rather than publish one. (#35)
+        env:
+          AGENT_RELEASE_SIGNING_KEY: ${{ secrets.AGENT_RELEASE_SIGNING_KEY }}
+        run: |
+          if [ -z "${AGENT_RELEASE_SIGNING_KEY}" ]; then
+            echo "ERROR: AGENT_RELEASE_SIGNING_KEY secret is not set." >&2
+            echo "Run scripts/gen-release-signing-key.sh and add the private key" >&2
+            echo "as the AGENT_RELEASE_SIGNING_KEY repo secret before releasing." >&2
+            exit 1
+          fi
+          printf '%s\n' "${AGENT_RELEASE_SIGNING_KEY}" > "${RUNNER_TEMP}/signing.pem"
+          # ubuntu-latest ships OpenSSL 3 → -rawin signs the raw message with the
+          # pure-Ed25519 scheme that crypto/ed25519 verifies on the host side.
+          openssl pkeyutl -sign \
+            -inkey "${RUNNER_TEMP}/signing.pem" -rawin \
+            -in dist/SHA256SUMS -out dist/SHA256SUMS.sig
+          rm -f "${RUNNER_TEMP}/signing.pem"
+          echo "Signed SHA256SUMS ($(wc -c < dist/SHA256SUMS.sig) bytes)"
+
       - name: Attach assets to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -102,4 +125,5 @@ jobs:
             dist/install.sh \
             dist/iclic-host-agent.service \
             dist/SHA256SUMS \
+            dist/SHA256SUMS.sig \
             --clobber

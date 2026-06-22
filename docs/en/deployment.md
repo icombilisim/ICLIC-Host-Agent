@@ -286,5 +286,45 @@ value like `127.0.0.1:6200`.
 
 ---
 
+## 14. Release signing (Ed25519) — auto-update foundation
+
+Releases are **Ed25519-signed** so a host can prove a release is *authentic*
+(it came from us), not merely *intact*. `SHA256SUMS` gives integrity; the
+signature `SHA256SUMS.sig` gives authenticity. This is the prerequisite for the
+ICLIC-orchestrated nightly auto-update (a host that pulls and self-installs as
+root MUST refuse anything it can't cryptographically verify). (#35)
+
+**How it works**
+- CI (`release.yml`) signs `SHA256SUMS` with the private key held in the
+  `AGENT_RELEASE_SIGNING_KEY` repo secret and publishes `SHA256SUMS.sig`. The
+  build **fails closed** if the secret is missing — no unsigned releases.
+- `install.sh` verifies the signature **before** trusting any checksum:
+  - **Upgrade** path uses the already-trusted current binary
+    (`iclic-host-agent verify-release --sums … --sig …`) — dependency-free.
+  - **Fresh install** falls back to `openssl` + the embedded public key; with no
+    usable verifier it proceeds trust-on-first-install over HTTPS (human-initiated).
+  - A genuine signature **mismatch always aborts**. Set `STRICT_VERIFY=1` to also
+    abort when the signature can't be verified at all (the auto-updater runs strict).
+
+**One-time setup (owner)** — run once, before the first signed release:
+```bash
+bash scripts/gen-release-signing-key.sh
+```
+It prints three artefacts and where each goes:
+1. **Private key PEM** → GitHub repo secret `AGENT_RELEASE_SIGNING_KEY`.
+2. **Public key PEM** → `installer/install.sh` (`RELEASE_PUBKEY_PEM`).
+3. **Public key base64** → `internal/release/verify.go` (`releasePublicKeyB64`).
+
+Commit (2) and (3), save (1) as the secret. Until then, releases stay unsigned
+and `install.sh` runs in TOFU mode — verification activates automatically once
+the key is embedded and a release carries a `.sig`.
+
+> Roadmap: signing is **Phase 1**. Phases 2–4 add a heartbeat `desiredAgentVersion`
+> signal, a root `iclic-host-agent-updater.timer` (nightly 01:00 UTC, health-gated
+> with auto-rollback), and ICLIC-side ring orchestration (canary → prod, halt on
+> failure).
+
+---
+
 **Keep this alive:** reflect every release or flow change here. A doc that rots
 is worse than no doc.

@@ -355,5 +355,44 @@ için aynı env var'a `127.0.0.1:6200` gibi bir değer ver.
 
 ---
 
+## 14. Release imzalama (Ed25519) — oto-güncelleme temeli
+
+Release'ler **Ed25519 ile imzalanır** ki bir host, bir release'in sadece *bozulmamış*
+değil *otantik* (bizden geldiğini) olduğunu kanıtlayabilsin. `SHA256SUMS` bütünlük
+verir; imza `SHA256SUMS.sig` otantiklik verir. Bu, ICLIC-orkestralı gecelik
+oto-güncellemenin ön koşuludur (root olarak çekip kendini kuran bir host,
+kriptografik olarak doğrulayamadığı hiçbir şeyi kabul etmemeli). (#35)
+
+**Nasıl çalışır**
+- CI (`release.yml`), `SHA256SUMS`'ı `AGENT_RELEASE_SIGNING_KEY` repo secret'ındaki
+  özel anahtarla imzalar ve `SHA256SUMS.sig` yayınlar. Secret yoksa build
+  **fail-closed** olur — imzasız release çıkmaz.
+- `install.sh`, herhangi bir checksum'a güvenmeden **önce** imzayı doğrular:
+  - **Upgrade** yolu, zaten güvenilen mevcut binary'yi kullanır
+    (`iclic-host-agent verify-release --sums … --sig …`) — bağımlılıksız.
+  - **Fresh install**, `openssl` + gömülü public key'e düşer; kullanılabilir
+    doğrulayıcı yoksa HTTPS üzerinden TOFU ile devam eder (insan başlatır).
+  - Gerçek bir imza **uyuşmazlığı her zaman durdurur**. Doğrulama hiç yapılamadığında
+    da durdurmak için `STRICT_VERIFY=1` ver (oto-updater strict çalışır).
+
+**Tek seferlik kurulum (sahip)** — ilk imzalı release'ten önce bir kez:
+```bash
+bash scripts/gen-release-signing-key.sh
+```
+Üç çıktı ve her birinin yeri:
+1. **Private key PEM** → GitHub repo secret `AGENT_RELEASE_SIGNING_KEY`.
+2. **Public key PEM** → `installer/install.sh` (`RELEASE_PUBKEY_PEM`).
+3. **Public key base64** → `internal/release/verify.go` (`releasePublicKeyB64`).
+
+(2) ve (3)'ü commit et, (1)'i secret olarak kaydet. O zamana kadar release'ler
+imzasız kalır ve `install.sh` TOFU modunda çalışır — anahtar gömülüp release bir
+`.sig` taşıdığında doğrulama otomatik devreye girer.
+
+> Yol haritası: imzalama **Faz 1**. Faz 2–4: heartbeat `desiredAgentVersion`
+> sinyali, root `iclic-host-agent-updater.timer` (gecelik 01:00 UTC, health-gate +
+> auto-rollback) ve ICLIC tarafı halka orkestrasyonu (canary → prod, hatada durdur).
+
+---
+
 **Son not:** Bu dokümanın canlı kalması için, her release veya akış değişikliğinde
 buraya yansıt. Doküman çürürse yararlı değil.

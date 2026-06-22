@@ -39,6 +39,82 @@ SERVICE_USER="iclic-agent"
 AGENT_VERSION="${AGENT_VERSION:-latest}"
 PROFILES="${PROFILES:-host,docker,systemd}"
 
+# `current` symlink path — defined early because the release-signature gate
+# verifies the new release with the already-installed (trusted) binary. (#35)
+CURRENT_LINK="${INSTALL_DIR}/iclic-host-agent"
+
+# STRICT_VERIFY=1 turns "cannot verify the signature" into a hard failure. The
+# Phase 3 root auto-updater always runs strict; manual installs default to
+# trust-on-first-install over HTTPS so a host without a usable verifier (or a
+# release published before signing was enabled) is not bricked. (#35)
+STRICT_VERIFY="${STRICT_VERIFY:-0}"
+
+# Embedded Ed25519 release public key (PEM). PLACEHOLDER — replace via
+# scripts/gen-release-signing-key.sh before enabling signed releases. While the
+# placeholder is in place the signature check is skipped (TOFU). (#35)
+RELEASE_PUBKEY_PEM='-----BEGIN PUBLIC KEY-----
+REPLACE_WITH_ED25519_PUBLIC_KEY_PEM
+-----END PUBLIC KEY-----'
+
+# verify_signature checks SHA256SUMS.sig against SHA256SUMS. It prefers the
+# already-trusted current binary (dependency-free, what the auto-updater uses)
+# and falls back to OpenSSL with the embedded key. A genuine signature mismatch
+# always aborts; "cannot verify here" only aborts under STRICT_VERIFY=1. (#35)
+verify_signature() {
+  local sums="$1" sig="$2"
+
+  if [[ "${RELEASE_PUBKEY_PEM}" == *REPLACE_WITH_ED25519_PUBLIC_KEY_PEM* ]]; then
+    echo "   WARN: release signing key not configured in installer — skipping" >&2
+    echo "         signature check (trust-on-first-install over HTTPS)." >&2
+    if [[ "${STRICT_VERIFY}" == "1" ]]; then
+      echo "ERROR: STRICT_VERIFY=1 but no signing key is configured." >&2
+      exit 1
+    fi
+    return 0
+  fi
+
+  # Preferred verifier: the trusted binary already on disk, if it understands
+  # the subcommand (older agents predate it). Probe output without tripping
+  # `set -o pipefail`.
+  local probe=""
+  if [[ -x "${CURRENT_LINK}" ]]; then
+    probe="$("${CURRENT_LINK}" verify-release 2>&1 || true)"
+  fi
+  if [[ "${probe}" == *"--sums"* ]]; then
+    if "${CURRENT_LINK}" verify-release --sums "${sums}" --sig "${sig}"; then
+      echo "   signature OK (verified by the current agent binary)"
+      return 0
+    fi
+    echo "ERROR: release signature verification FAILED. Refusing to install." >&2
+    exit 1
+  fi
+
+  # Fallback verifier: OpenSSL + the embedded public key.
+  if command -v openssl >/dev/null 2>&1; then
+    printf '%s\n' "${RELEASE_PUBKEY_PEM}" > "${WORK_DIR}/release_pub.pem"
+    local out
+    if out="$(openssl pkeyutl -verify -pubin -inkey "${WORK_DIR}/release_pub.pem" \
+              -rawin -in "${sums}" -sigfile "${sig}" 2>&1)"; then
+      echo "   signature OK (verified by openssl)"
+      return 0
+    fi
+    if echo "${out}" | grep -qiE "verification fail"; then
+      echo "ERROR: release signature verification FAILED. Refusing to install." >&2
+      exit 1
+    fi
+    echo "   WARN: openssl could not run Ed25519 verification (${out%%$'\n'*})." >&2
+  else
+    echo "   WARN: openssl not found — cannot verify the signature on this host." >&2
+  fi
+
+  if [[ "${STRICT_VERIFY}" == "1" ]]; then
+    echo "ERROR: STRICT_VERIFY=1 and no usable verifier — refusing to install." >&2
+    exit 1
+  fi
+  echo "   WARN: proceeding without signature verification (TOFU over HTTPS)." >&2
+  return 0
+}
+
 if [[ "${EUID}" -ne 0 ]]; then
   echo "ERROR: installer must run as root (or via sudo)." >&2
   exit 1
@@ -93,8 +169,27 @@ curl -fsSL "${RELEASE_BASE}/iclic-host-agent-linux-${ARCH}" -o "${WORK_DIR}/icli
 curl -fsSL "${RELEASE_BASE}/SHA256SUMS"                     -o "${WORK_DIR}/SHA256SUMS"
 curl -fsSL "${RELEASE_BASE}/configs.tar.gz"                 -o "${WORK_DIR}/configs.tar.gz"
 curl -fsSL "${RELEASE_BASE}/iclic-host-agent.service"       -o "${WORK_DIR}/iclic-host-agent.service"
+# The signature may be absent on releases published before signing was enabled;
+# tolerate a 404 here and let verify_signature decide (TOFU vs strict). (#35)
+SIG_PRESENT=1
+curl -fsSL "${RELEASE_BASE}/SHA256SUMS.sig" -o "${WORK_DIR}/SHA256SUMS.sig" || SIG_PRESENT=0
 
-# ─── Verify SHA256 ─────────────────────────────────────────────────
+# ─── Verify release signature (authenticity) ───────────────────────
+# SHA256SUMS proves the bytes are intact; the Ed25519 signature over it proves
+# they came from us. Check authenticity FIRST, before trusting any checksum the
+# same download produced. (#35)
+echo ">> Verifying release signature"
+if [[ "${SIG_PRESENT}" -eq 1 ]]; then
+  verify_signature "${WORK_DIR}/SHA256SUMS" "${WORK_DIR}/SHA256SUMS.sig"
+else
+  echo "   WARN: no SHA256SUMS.sig in this release — cannot verify authenticity." >&2
+  if [[ "${STRICT_VERIFY}" == "1" ]]; then
+    echo "ERROR: STRICT_VERIFY=1 but the release is unsigned. Refusing to install." >&2
+    exit 1
+  fi
+fi
+
+# ─── Verify SHA256 (integrity) ─────────────────────────────────────
 # A truncated download from a flaky network would silently produce a
 # corrupt binary; tampering would do the same loudly. Either way,
 # verify before we trust the bytes. (#112)
@@ -154,7 +249,7 @@ install -d -o "${SERVICE_USER}" -g "${SERVICE_USER}" -m 0700 "${STATE_DIR}"
 # symlink is the only thing systemd consumes, so rollback is one
 # `ln -sfn` away. (#112)
 VERSIONED_BIN="${INSTALL_DIR}/bin/iclic-host-agent-${RESOLVED_VERSION}"
-CURRENT_LINK="${INSTALL_DIR}/iclic-host-agent"
+# CURRENT_LINK is defined near the top (the signature gate needs it).
 
 echo ">> Installing binary as ${VERSIONED_BIN}"
 install -o root -g root -m 0755 "${WORK_DIR}/iclic-host-agent" "${VERSIONED_BIN}"

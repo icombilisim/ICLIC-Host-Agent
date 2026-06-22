@@ -23,6 +23,7 @@ import (
 	"github.com/icombilisim/iclic-host-agent/internal/config"
 	"github.com/icombilisim/iclic-host-agent/internal/control"
 	"github.com/icombilisim/iclic-host-agent/internal/heartbeat"
+	"github.com/icombilisim/iclic-host-agent/internal/release"
 )
 
 const (
@@ -158,6 +159,13 @@ func applyInterval(ticker *time.Ticker, current *int, desired int) {
 // the process fall through and boot a stray agent. Also accepts the bare
 // `iclic-host-agent version` subcommand form. (#25)
 func handleCLIArgs() {
+	// verify-release lets the already-trusted current binary check the Ed25519
+	// signature of the next release before the installer/auto-updater swaps it
+	// in — the cryptographic gate that makes auto-update safe. (#35)
+	if len(os.Args) > 1 && os.Args[1] == "verify-release" {
+		runVerifyRelease(os.Args[2:])
+	}
+
 	fs := flag.NewFlagSet("iclic-host-agent", flag.ExitOnError)
 	versionFlag := fs.Bool("version", false, "print version and exit")
 	fs.BoolVar(versionFlag, "v", false, "print version and exit (shorthand)")
@@ -172,6 +180,27 @@ func handleCLIArgs() {
 		fmt.Fprintf(os.Stderr, "iclic-host-agent: unexpected argument %q\n", fs.Arg(0))
 		os.Exit(exitUsage)
 	}
+}
+
+// runVerifyRelease verifies an Ed25519 signature over a SHA256SUMS file using
+// the public key embedded at build time, then exits. It never returns — exit 0
+// means the release is authentic, non-zero means do NOT trust it. (#35)
+func runVerifyRelease(argv []string) {
+	fs := flag.NewFlagSet("verify-release", flag.ExitOnError)
+	sums := fs.String("sums", "", "path to the SHA256SUMS file")
+	sig := fs.String("sig", "", "path to the SHA256SUMS.sig signature file")
+	_ = fs.Parse(argv)
+
+	if *sums == "" || *sig == "" {
+		fmt.Fprintln(os.Stderr, "verify-release: --sums and --sig are both required")
+		os.Exit(exitUsage)
+	}
+	if err := release.Verify(*sums, *sig); err != nil {
+		fmt.Fprintf(os.Stderr, "verify-release: FAILED — %v\n", err)
+		os.Exit(exitInternal)
+	}
+	fmt.Println("verify-release: OK")
+	os.Exit(exitOK)
 }
 
 // acquireSingleInstanceLock takes an exclusive, non-blocking advisory lock so
