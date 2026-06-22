@@ -27,6 +27,10 @@ English is the source of truth; `docs/tr/` mirrors it. Before changing code, rea
   every control request. Destructive verbs additionally require ICLIC-side 2FA.
 - **release-please owns the version.** Never hand-bump `AgentVersion`
   (`internal/heartbeat/heartbeat.go`) or push `v*` tags manually.
+- **Releases are Ed25519-signed and verified before install.** CI fails closed
+  without `AGENT_RELEASE_SIGNING_KEY`; `install.sh` aborts on a signature
+  mismatch. Never publish unsigned or weaken `internal/release.Verify` /
+  `verify_signature` — auto-update trusts this gate. See `deployment.md` §14.
 - **Versioned binaries.** Rollback = retarget the `current` symlink; the previous
   binary stays on disk. Don't break that on-disk layout.
 - **Bump `ProtocolVersion`** only on a breaking wire change (see `protocol.md`);
