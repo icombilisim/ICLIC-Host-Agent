@@ -13,7 +13,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/icombilisim/iclic-host-agent/internal/collectors"
@@ -98,12 +100,17 @@ func (s *Sender) SendOnce(ctx context.Context) (int, error) {
 	// Best-effort: read the server's desired interval. A missing or non-JSON
 	// body just leaves it 0 (caller keeps the current cadence). (#476)
 	desiredInterval := 0
+	desiredVersion := ""
 	if respBody, rerr := io.ReadAll(io.LimitReader(resp.Body, 4096)); rerr == nil {
 		var hbResp heartbeatResponse
 		if json.Unmarshal(respBody, &hbResp) == nil {
 			desiredInterval = hbResp.NextHeartbeatAfterSeconds
+			desiredVersion = strings.TrimSpace(hbResp.DesiredAgentVersion)
 		}
 	}
+	// Record what ICLIC wants this host on so the privileged updater (Phase 3)
+	// can act on it out-of-band; the agent itself never self-updates. (#480)
+	recordDesiredVersion(desiredVersion)
 	runtimeCount := s.sendRuntimeSignals(ctx, payload)
 	// INFO so journalctl shows the operator a heartbeat actually went through
 	// — DEBUG was effectively silent at the default log level. (#35)
@@ -117,9 +124,49 @@ func (s *Sender) SendOnce(ctx context.Context) (int, error) {
 
 // heartbeatResponse is the subset of ICLIC's heartbeat reply the agent acts on.
 // ICLIC echoes the desired cadence (nextHeartbeatAfterSeconds) so the operator
-// can change detection speed centrally without touching the agent host. (#476)
+// can change detection speed centrally without touching the agent host (#476),
+// and the desired agent version for this host's release ring (#480).
 type heartbeatResponse struct {
-	NextHeartbeatAfterSeconds int `json:"nextHeartbeatAfterSeconds"`
+	NextHeartbeatAfterSeconds int    `json:"nextHeartbeatAfterSeconds"`
+	DesiredAgentVersion       string `json:"desiredAgentVersion"`
+}
+
+// defaultDesiredVersionFile is where the agent records the version ICLIC wants
+// this host on. The Phase 3 root updater reads it at its scheduled run; the
+// unprivileged agent only writes it. Overridable for dev. (#480)
+const defaultDesiredVersionFile = "/var/lib/iclic-host-agent/desired-version"
+
+// recordDesiredVersion persists the server-requested target version (atomic,
+// write-on-change) so the privileged updater can act on it. Best-effort: a
+// write failure is logged, never fatal to the heartbeat. An empty desired
+// version (no directive) leaves any existing file untouched. (#480)
+func recordDesiredVersion(desired string) {
+	if desired == "" {
+		return
+	}
+	path := os.Getenv("ICLIC_AGENT_DESIRED_VERSION_FILE")
+	if path == "" {
+		path = defaultDesiredVersionFile
+	}
+	if existing, err := os.ReadFile(path); err == nil && strings.TrimSpace(string(existing)) == desired {
+		return // unchanged — avoid disk churn every tick
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(desired+"\n"), 0o600); err != nil {
+		slog.Warn("could not write desired-version file", "path", path, "err", err)
+		return
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		slog.Warn("could not finalize desired-version file", "path", path, "err", err)
+		_ = os.Remove(tmp)
+		return
+	}
+	// 'latest' means "newest available" — the agent can't resolve that here, so
+	// surface it verbatim and let the updater decide. Otherwise compare against
+	// the running version (ICLIC tags carry a 'v' prefix; AgentVersion doesn't).
+	if desired != "latest" && strings.TrimPrefix(desired, "v") != AgentVersion {
+		slog.Info("agent update requested by ICLIC", "desired", desired, "current", AgentVersion)
+	}
 }
 
 // Payload is the wire shape ICLIC accepts on
