@@ -49,11 +49,12 @@ CURRENT_LINK="${INSTALL_DIR}/iclic-host-agent"
 # release published before signing was enabled) is not bricked. (#35)
 STRICT_VERIFY="${STRICT_VERIFY:-0}"
 
-# Embedded Ed25519 release public key (PEM). PLACEHOLDER — replace via
-# scripts/gen-release-signing-key.sh before enabling signed releases. While the
-# placeholder is in place the signature check is skipped (TOFU). (#35)
+# Embedded Ed25519 release public key (PEM), matching the AGENT_RELEASE_SIGNING_KEY
+# secret. Generated 2026-06-22 via scripts/gen-release-signing-key.sh; verified
+# end-to-end against the v0.16.0 release signature. Rotate by re-running the
+# script. (#35)
 RELEASE_PUBKEY_PEM='-----BEGIN PUBLIC KEY-----
-REPLACE_WITH_ED25519_PUBLIC_KEY_PEM
+MCowBQYDK2VwAyEAjGLvOjNYFDA8tHhsFFBaLXT9UKxyChImRaqY4sDOsQY=
 -----END PUBLIC KEY-----'
 
 # verify_signature checks SHA256SUMS.sig against SHA256SUMS. It prefers the

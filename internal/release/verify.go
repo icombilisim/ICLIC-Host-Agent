@@ -15,12 +15,10 @@ import (
 
 // releasePublicKeyB64 is the base64-encoded raw Ed25519 public key (32 bytes)
 // that matches the private key held in the AGENT_RELEASE_SIGNING_KEY GitHub
-// secret. Generate the pair with scripts/gen-release-signing-key.sh.
-//
-// PLACEHOLDER — replace with the real public key before enabling signed
-// auto-update. While the placeholder is in place, Verify fails closed so a
-// release can never be silently trusted unsigned. (#35)
-const releasePublicKeyB64 = "REPLACE_WITH_BASE64_ED25519_PUBLIC_KEY"
+// secret. Generated 2026-06-22 via scripts/gen-release-signing-key.sh; verified
+// end-to-end against the v0.16.0 release signature. Rotate by re-running the
+// script (new secret + new key here + installer PEM). (#35)
+const releasePublicKeyB64 = "jGLvOjNYFDA8tHhsFFBaLXT9UKxyChImRaqY4sDOsQY="
 
 // ErrKeyNotConfigured is returned while the signing public key is still the
 // build-time placeholder. Callers must treat it as "cannot verify" and refuse
