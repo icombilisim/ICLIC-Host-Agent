@@ -324,6 +324,41 @@ the key is embedded and a release carries a `.sig`.
 > with auto-rollback), and ICLIC-side ring orchestration (canary → prod, halt on
 > failure).
 
+## 15. Nightly auto-update (Phase 3)
+
+Once enrolled, a host keeps itself on the version ICLIC asks for — no
+`deploy-all.sh` needed for routine upgrades. The flow is **server-authoritative**
+and **privilege-separated**:
+
+1. ICLIC resolves a `desiredAgentVersion` for the server (its ring target, or a
+   per-server pin) and returns it on every heartbeat.
+2. The unprivileged agent records it to `/var/lib/iclic-host-agent/desired-version`.
+3. A **root** `iclic-host-agent-updater.timer` fires nightly at **01:00 UTC**
+   (`RandomizedDelaySec=900` spreads the fleet so a bad release can't take
+   everyone down at once). It runs `iclic-host-agent-updater`, which:
+   - compares the desired version to the installed one; if equal, exits;
+   - runs `install.sh` with **`STRICT_VERIFY=1`** (signature enforced — see §14);
+   - **health-gates**: a `heartbeat accepted` must appear in the journal within
+     `HEALTH_TIMEOUT` (180 s); if it does, done;
+   - otherwise **rolls back** to the previous binary (`ln -sfn` + restart).
+
+The agent never updates itself — it only writes the directive; the root timer
+applies it. To advance a ring, an operator sets its target version in ICLIC
+(`PUT /api/v1/admin/agent-release-targets/{environment}`); a per-server pin
+(canary / hold) is set on the server record.
+
+```bash
+# Inspect / drive on a host
+cat /var/lib/iclic-host-agent/desired-version      # what ICLIC asked for
+systemctl list-timers iclic-host-agent-updater     # next run
+systemctl start iclic-host-agent-updater.service   # apply now (don't wait for 01:00)
+journalctl -u iclic-host-agent-updater -n 50       # what the last run did
+```
+
+The updater needs the desired release to be **signed**; an unverifiable release
+is refused (fail-closed), so the host stays put rather than installing something
+it can't authenticate. `deploy-all.sh` remains for manual fleet pushes.
+
 ---
 
 **Keep this alive:** reflect every release or flow change here. A doc that rots

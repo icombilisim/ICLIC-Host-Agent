@@ -1,0 +1,12 @@
+[Unit]
+Description=ICLIC Host Agent self-updater (applies the ICLIC-requested version)
+Documentation=https://github.com/icombilisim/ICLIC-Host-Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Oneshot, run by the .timer. Runs as root: it must write /opt, swap the
+# versioned-binary symlink, and restart the agent unit. It does NOT serve
+# anything and exits as soon as the update (or rollback) completes. (#43)
+Type=oneshot
+ExecStart=/opt/iclic-host-agent/iclic-host-agent-updater

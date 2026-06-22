@@ -1,0 +1,14 @@
+[Unit]
+Description=Nightly ICLIC Host Agent self-update check
+
+[Timer]
+# 01:00 UTC nightly. RandomizedDelaySec spreads the fleet across a 15-minute
+# window so every host doesn't hit GitHub (and restart) at the same instant —
+# a bad release then can't take the whole fleet down simultaneously. Persistent
+# catches up a run missed while the host was powered off. (#43)
+OnCalendar=*-*-* 01:00:00 UTC
+RandomizedDelaySec=900
+Persistent=true
+
+[Install]
+WantedBy=timers.target

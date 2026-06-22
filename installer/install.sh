@@ -170,6 +170,12 @@ curl -fsSL "${RELEASE_BASE}/iclic-host-agent-linux-${ARCH}" -o "${WORK_DIR}/icli
 curl -fsSL "${RELEASE_BASE}/SHA256SUMS"                     -o "${WORK_DIR}/SHA256SUMS"
 curl -fsSL "${RELEASE_BASE}/configs.tar.gz"                 -o "${WORK_DIR}/configs.tar.gz"
 curl -fsSL "${RELEASE_BASE}/iclic-host-agent.service"       -o "${WORK_DIR}/iclic-host-agent.service"
+# Phase 3 self-updater assets. Absent on releases published before Phase 3, so
+# tolerate a 404 and just skip installing the updater in that case. (#43)
+UPDATER_PRESENT=1
+curl -fsSL "${RELEASE_BASE}/iclic-host-agent-updater.sh"      -o "${WORK_DIR}/iclic-host-agent-updater.sh"      || UPDATER_PRESENT=0
+curl -fsSL "${RELEASE_BASE}/iclic-host-agent-updater.service" -o "${WORK_DIR}/iclic-host-agent-updater.service" || UPDATER_PRESENT=0
+curl -fsSL "${RELEASE_BASE}/iclic-host-agent-updater.timer"   -o "${WORK_DIR}/iclic-host-agent-updater.timer"   || UPDATER_PRESENT=0
 # The signature may be absent on releases published before signing was enabled;
 # tolerate a 404 here and let verify_signature decide (TOFU vs strict). (#35)
 SIG_PRESENT=1
@@ -221,6 +227,11 @@ cp iclic-host-agent "iclic-host-agent-linux-${ARCH}"
 verify_one "iclic-host-agent-linux-${ARCH}"
 verify_one configs.tar.gz
 verify_one iclic-host-agent.service
+if [[ "${UPDATER_PRESENT}" -eq 1 ]]; then
+  verify_one iclic-host-agent-updater.sh
+  verify_one iclic-host-agent-updater.service
+  verify_one iclic-host-agent-updater.timer
+fi
 cd - >/dev/null
 
 # ─── Users + directories ───────────────────────────────────────────
@@ -338,11 +349,26 @@ for profile in "${REQUESTED[@]}"; do
   echo "   enabled: ${profile} → ${target}"
 done
 
-# ─── systemd unit ──────────────────────────────────────────────────
+# ─── systemd units + self-updater ──────────────────────────────────
 echo ">> Installing systemd unit"
 install -o root -g root -m 0644 \
   "${WORK_DIR}/iclic-host-agent.service" \
   /etc/systemd/system/iclic-host-agent.service
+
+if [[ "${UPDATER_PRESENT}" -eq 1 ]]; then
+  echo ">> Installing self-updater (nightly timer)"
+  install -o root -g root -m 0755 \
+    "${WORK_DIR}/iclic-host-agent-updater.sh" "${INSTALL_DIR}/iclic-host-agent-updater"
+  install -o root -g root -m 0644 \
+    "${WORK_DIR}/iclic-host-agent-updater.service" /etc/systemd/system/iclic-host-agent-updater.service
+  install -o root -g root -m 0644 \
+    "${WORK_DIR}/iclic-host-agent-updater.timer" /etc/systemd/system/iclic-host-agent-updater.timer
+  # The updater re-runs the installer, so keep a stable copy it can call. Skip
+  # when piped (curl|bash) where $0 is not a readable file. (#43)
+  if [[ -f "$0" && "$0" != "${INSTALL_DIR}/install.sh" ]]; then
+    install -o root -g root -m 0755 "$0" "${INSTALL_DIR}/install.sh"
+  fi
+fi
 
 systemctl daemon-reload
 
@@ -352,6 +378,11 @@ if [[ "${ALREADY_ENROLLED}" -eq 1 ]]; then
 else
   echo ">> Enabling and starting iclic-host-agent (fresh install)"
   systemctl enable --now iclic-host-agent
+fi
+
+if [[ "${UPDATER_PRESENT}" -eq 1 ]]; then
+  echo ">> Enabling nightly self-update timer"
+  systemctl enable --now iclic-host-agent-updater.timer
 fi
 
 echo ""
