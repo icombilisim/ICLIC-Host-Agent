@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.16.0...v0.17.0) (2026-06-22)
+
+
+### Features
+
+* persist desiredAgentVersion from heartbeat reply ([#40](https://github.com/icombilisim/ICLIC-Host-Agent/issues/40)) ([#41](https://github.com/icombilisim/ICLIC-Host-Agent/issues/41)) ([3dbb171](https://github.com/icombilisim/ICLIC-Host-Agent/commit/3dbb17136ba60dd7d8d364f91aa2792e51c9a077))
+
 ## [0.16.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.15.0...v0.16.0) (2026-06-22)
 
 
