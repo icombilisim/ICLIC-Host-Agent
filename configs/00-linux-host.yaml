@@ -4,7 +4,7 @@
 # needed when you edit it.
 #
 # Schema: each entry is { id, primitive, args, output_key }. See
-# docs/collectors.md for the full primitive reference.
+# docs/en/collectors.md for the full primitive reference.
 
 # CPU load — 1-/5-/15-minute windows
 - id: load_1m

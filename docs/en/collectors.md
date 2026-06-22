@@ -1,5 +1,8 @@
 # Operator-defined collectors
 
+> **Version** v0.15.0 · **Last updated** 2026-06-22 · **Canonical language** English
+> · part of the [ICLIC Host Agent docs](../README.md)
+
 The agent's metric body is built from one or more YAML files in
 `/etc/iclic-host-agent/collectors.d/`. Each file is a flat list of *bindings*;
 each binding names a built-in *primitive*, supplies its arguments, and declares
@@ -18,8 +21,8 @@ tick — there is no agent restart when you edit, add, or remove a file.
 ```
 
 Bindings with `primitive: <unknown>`, missing `output_key`, or empty `id` are
-skipped with a warning. A primitive that returns an error logs at WARN and
-omits its metric for that tick — never crashes the agent.
+skipped with a warning. A primitive that returns an error logs at WARN and omits
+its metric for that tick — never crashes the agent.
 
 ## Built-in primitives
 
@@ -56,6 +59,30 @@ reports `0` for `used_pct` so the metric is always present.
 ### procfs.cpu_count
 
 Returns the number of online logical CPUs (int).
+
+### procfs.cpu_used_pct
+
+Samples `/proc/stat` twice and returns host CPU utilisation as a percentage
+(float). Added in v0.13.0 to feed ICLIC's metric history.
+
+### procfs.diskstats
+
+Samples `/proc/diskstats` twice and returns aggregate disk I/O rates across real
+(whole) disks: `{ read_mbps, write_mbps, iops }`.
+
+| Arg        | Type   | Default | Description |
+|------------|--------|---------|-------------|
+| sample_sec | number | `1`     | Sampling window, clamped to 0.2..5 |
+
+### procfs.netdev
+
+Samples `/proc/net/dev` twice and returns aggregate network rates across real
+interfaces: `{ rx_mbps, tx_mbps, rx_errors, tx_errors }`.
+
+| Arg        | Type   | Default | Description |
+|------------|--------|---------|-------------|
+| sample_sec | number | `1`     | Sampling window, clamped to 0.2..5 |
+| iface      | string | (all)   | Restrict to one interface; otherwise all non-virtual |
 
 ### os.release
 
@@ -105,8 +132,8 @@ Same source as `disk.usage` but reduced to a single number — the highest
 
 ### exec
 
-Run an arbitrary command. The escape hatch — anything not covered by a
-named primitive (WildFly CLI, jboss-cli, custom scripts) goes through this.
+Run an arbitrary command. The escape hatch — anything not covered by a named
+primitive (WildFly CLI, jboss-cli, custom scripts) goes through this.
 
 | Arg         | Type     | Default | Description |
 |-------------|----------|---------|-------------|
@@ -146,8 +173,8 @@ Per-unit shape:
 
 `cpu_ns` is the cumulative `CPUUsageNSec` counter — the backend derives a
 percentage between heartbeats. Missing units come back with
-`load_state: not-found` instead of dropping the row, so the UI keeps a
-stable slot even for services that have been removed.
+`load_state: not-found` instead of dropping the row, so the UI keeps a stable
+slot even for services that have been removed.
 
 ### tcp.connect
 
@@ -168,6 +195,20 @@ Single GET request.
 | url         | string | —       | Full URL |
 | timeout_sec | number | `3`     | |
 | expect      | string | `code`  | `code` (return status int) / `ok` (return 200..299 bool) |
+
+### http.probe
+
+Synthetic uptime check: one GET reporting reachability, latency, and status as a
+map `{ up, latency_ms, status }`. A connection failure returns `up: false`
+(`status: 0`) rather than an error — so "down" is a recorded data point, not a
+missing metric. `up` is `true` for 2xx/3xx by default, or exactly `expect_status`
+when set.
+
+| Arg           | Type   | Default | Description |
+|---------------|--------|---------|-------------|
+| url           | string | —       | Full URL |
+| timeout_sec   | number | `5`     | |
+| expect_status | number | (unset) | If set, `up` requires this exact status code |
 
 ### http.get_json
 
@@ -192,16 +233,28 @@ Path syntax:
 - `measurements.0.value` — numeric segment indexes into an array
 
 Numbers and booleans come back as `float64` / `bool`; strings as `string`.
-Missing keys yield `nil` and the binding's metric is omitted from the
-heartbeat. Response body is capped at 1 MB to keep one misbehaving endpoint
-from blowing up a tick.
+Missing keys yield `nil` and the binding's metric is omitted. Response body is
+capped at 1 MB to keep one misbehaving endpoint from blowing up a tick.
+
+### ssl.cert_expiry
+
+Connects over TLS to `host:port` and returns the number of whole days until the
+leaf (server) certificate expires (int). Feeds the `90-tls.yaml` profile so ICLIC
+can alert before a cert lapses.
+
+| Arg         | Type   | Default | Description |
+|-------------|--------|---------|-------------|
+| host        | string | —       | What to dial (required) |
+| port        | number | `443`   | 1..65535 |
+| server_name | string | (host)  | SNI to select the cert; defaults to `host` |
+| timeout_sec | number | `5`     | |
 
 ### docker.containers
 
 Talks directly to `dockerd` over `/var/run/docker.sock` (no `docker` CLI
-needed) and returns one row per container plus a state-bucket summary. The
-agent must be a member of the `docker` group on every host that ships this
-binding — `installer/install.sh` does that automatically.
+needed) and returns one row per container plus a state-bucket summary. The agent
+must be a member of the `docker` group on every host that ships this binding —
+`installer/install.sh` does that automatically.
 
 | Arg         | Type   | Default               | Description |
 |-------------|--------|-----------------------|-------------|
@@ -222,8 +275,8 @@ Shape:
 
 Per-container CPU + memory snapshot, fetched via the docker `stats` endpoint
 with `stream=false`. The CPU% is computed the same way `docker stats` does —
-delta of `cpu_usage.total_usage` over `system_cpu_usage`, multiplied by
-online CPUs — so a 2-core box pegged at 100% on each core reports `200.0`.
+delta of `cpu_usage.total_usage` over `system_cpu_usage`, multiplied by online
+CPUs — so a 2-core box pegged at 100% on each core reports `200.0`.
 
 | Arg         | Type   | Default               | Description |
 |-------------|--------|-----------------------|-------------|
@@ -237,16 +290,16 @@ Shape: list of
   restart_count }
 ```
 
-A single, process-lifetime HTTP client is shared across all docker
-primitives and across ticks (added in v0.4.0). Earlier builds opened a fresh
+A single, process-lifetime HTTP client is shared across all docker primitives
+and across ticks (added in v0.4.0). Earlier builds opened a fresh
 `http.Transport` per request, which leaked memory on long-running hosts. (#2)
 
 ### runtime.services
 
-Turns a configurable service registry into `runtime_instances` signals for
-ICLIC Fleet and Deployment Status. Unlike one-off `exec` probes, this primitive
-always emits one row per configured service: a failed container or actuator
-probe becomes `STALE` with diagnostic payload, so the UI shows a broken service
+Turns a configurable service registry into `runtime_instances` signals for ICLIC
+Fleet and Deployment Status. Unlike one-off `exec` probes, this primitive always
+emits one row per configured service: a failed container or actuator probe
+becomes `STALE` with diagnostic payload, so the UI shows a broken service
 instead of losing the row. (#112)
 
 | Arg         | Type     | Default               | Description |
@@ -296,15 +349,26 @@ reverse: delete the service entry or mark the catalog component inactive.
 | Arg   | Type   | Default  | Description |
 |-------|--------|----------|-------------|
 | path  | string | —        | |
-| field | string | `exists` | `exists` (bool) / `size_bytes` (int) / `mtime_seconds` (int). On missing path, `size_bytes` and `mtime_seconds` return `-1`. |
+| field | string | `exists` | `exists` (bool) / `size_bytes` (int) / `mtime_seconds` (int) / `age_seconds` (int, seconds since last modification). On missing path, numeric fields return `-1`. |
+
+### file.newest_age_seconds
+
+Returns seconds since the most recently modified regular file matching a glob —
+i.e. "how old is the latest backup". Returns `-1` when nothing matches. Built for
+timestamped dump dirs where the filename changes every run; alert when the age
+exceeds your backup interval (e.g. `> 93600` = 26 h for a daily dump).
+
+| Arg  | Type   | Default | Description |
+|------|--------|---------|-------------|
+| glob | string | —       | e.g. `/opt/iclic/mysql/backups/*.sql.gz` |
 
 ### apt.security_count
 
-Counts pending security updates by parsing `apt-get -s upgrade`. Returns int.
-On RHEL/CentOS or when apt is locked / missing / times out, returns `-1` —
-the documented sentinel for "agent could not determine". Never errors so
-non-Debian hosts get the right "unknown" signal until a `dnf.security_count`
-primitive exists.
+Counts pending security updates by parsing `apt-get -s upgrade`. Returns int. On
+RHEL/CentOS or when apt is locked / missing / times out, returns `-1` — the
+documented sentinel for "agent could not determine". Never errors so non-Debian
+hosts get the right "unknown" signal until a `dnf.security_count` primitive
+exists.
 
 ## Adding a new file
 
@@ -329,18 +393,18 @@ primitive exists.
   output_key: wildfly_admin_port_open
 ```
 
-Save the file → wait one tick (default 60 s) → ICLIC server detail page picks
-up the new keys automatically. The Server Detail "Host Metrics" panel renders
-the well-known keys from the linux-host profile by default; everything else
-is visible via the raw payload viewer in the "Heartbeat History" panel.
+Save the file → wait one tick (default 60 s) → ICLIC server detail page picks up
+the new keys automatically. The Server Detail "Host Metrics" panel renders the
+well-known keys from the linux-host profile by default; everything else is
+visible via the raw payload viewer in the "Heartbeat History" panel.
 
 ## Runtime deployment status
 
-ICLIC also accepts runtime version signals under the reserved
-`runtime_instances` output key. The agent forwards each item to
+ICLIC also accepts runtime version signals under the reserved `runtime_instances`
+output key. The agent forwards each item to
 `POST /api/v1/server/runtime-instances/heartbeat` after the normal host
-heartbeat succeeds. This keeps Docker, systemd, WildFly, PHP, Python, .NET,
-Go, and other legacy stacks on one collection path.
+heartbeat succeeds. This keeps Docker, systemd, WildFly, PHP, Python, .NET, Go,
+and other legacy stacks on one collection path.
 
 The easiest integration point is an operator script that prints JSON and an
 `exec` binding with `parse: json`:
@@ -367,26 +431,24 @@ The script must print an array:
     "runningVersion": "1.21.1",
     "gitCommit": "abc1234",
     "environment": "PROD",
-    "payload": {
-      "source": "systemd",
-      "unit": "icosys-hrm.service"
-    }
+    "payload": { "source": "systemd", "unit": "icosys-hrm.service" }
   }
 ]
 ```
 
-`productCode` + `componentCode` identify the ICLIC runtime component catalog
-row. `instanceKey` should be stable across restarts. If omitted, ICLIC falls
-back to the authenticated server id plus component code. `versionSource` and
-`status` are optional; the agent defaults them to `HOST_AGENT` and `HEALTHY`.
+`productCode` + `componentCode` identify the ICLIC runtime component catalog row.
+`instanceKey` should be stable across restarts. If omitted, ICLIC falls back to
+the authenticated server id plus component code. `versionSource` and `status` are
+optional; the agent defaults them to `HOST_AGENT` and `HEALTHY`. See
+[`protocol.md`](protocol.md) for the endpoint contract.
 
 ## Security notes
 
 - `/etc/iclic-host-agent/collectors.d/` is `0750 root:iclic-agent`. Only root
   can write — the agent only reads.
-- The agent runs as the `iclic-agent` system user. The `exec` primitive
-  inherits that user's privileges. Operators who need a probe to read a
-  privileged file (e.g. `/var/log/audit/audit.log`) typically grant the
-  group via ACL rather than running the agent as root.
-- Probes are run with a per-binding timeout (default 5 s) and a per-tick
-  total budget (30 s). A pathological probe never blocks the heartbeat.
+- The agent runs as the `iclic-agent` system user. The `exec` primitive inherits
+  that user's privileges. Operators who need a probe to read a privileged file
+  (e.g. `/var/log/audit/audit.log`) typically grant the group via ACL rather
+  than running the agent as root.
+- Probes are run with a per-binding timeout (default 5 s) and a per-tick total
+  budget (30 s). A pathological probe never blocks the heartbeat.

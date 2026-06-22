@@ -26,7 +26,7 @@ import (
 const AgentVersion = "0.15.0" // x-release-please-version
 
 // ProtocolVersion is the heartbeat schema version. Bumped on breaking changes;
-// ICLIC accepts the last N versions per docs/protocol.md.
+// ICLIC accepts the last N versions per docs/en/protocol.md.
 const ProtocolVersion = 1
 
 // perBindingTimeout caps any single primitive invocation. The total walltime
