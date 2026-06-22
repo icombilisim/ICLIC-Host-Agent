@@ -56,8 +56,8 @@ type runtimeServiceConfig struct {
 	Environment    string
 	InstanceKey    string
 	Probe          string
-	VersionPath     string
-	GitCommitPath   string
+	VersionPath    string
+	GitCommitPath  string
 	ExpectedStatus string
 }
 
@@ -77,11 +77,11 @@ type runtimeSignal struct {
 func probeRuntimeService(ctx context.Context, socket string, timeout time.Duration,
 	svc runtimeServiceConfig) runtimeSignal {
 	payload := map[string]any{
-		"source":     "host-agent-runtime-services",
-		"name":       svc.Name,
-		"container":  svc.Container,
-		"probe":      firstNonBlank(svc.Probe, "http"),
-		"checkedAt":  time.Now().UTC().Format(time.RFC3339),
+		"source":    "host-agent-runtime-services",
+		"name":      svc.Name,
+		"container": svc.Container,
+		"probe":     firstNonBlank(svc.Probe, "http"),
+		"checkedAt": time.Now().UTC().Format(time.RFC3339),
 	}
 	signal := runtimeSignal{
 		ProductCode:   svc.ProductCode,
@@ -226,8 +226,8 @@ func runtimeServiceConfigs(raw any) ([]runtimeServiceConfig, error) {
 			Environment:    argString(m, "environment", ""),
 			InstanceKey:    argString(m, "instance_key", ""),
 			Probe:          argString(m, "probe", ""),
-			VersionPath:     argString(m, "version_path", ""),
-			GitCommitPath:   argString(m, "git_commit_path", ""),
+			VersionPath:    argString(m, "version_path", ""),
+			GitCommitPath:  argString(m, "git_commit_path", ""),
 			ExpectedStatus: argString(m, "expected_status", ""),
 		}
 		if svc.ProductCode == "" || svc.ComponentCode == "" || svc.HealthURL == "" {
