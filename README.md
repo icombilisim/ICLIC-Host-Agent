@@ -21,7 +21,8 @@ The collector engine is **YAML-driven**: 21 built-in primitives
 `tcp.connect`, `http.get`, `http.get_json`, `file.stat`, `apt.*`,
 `docker.*`) are wired up by binding files. New components are added by
 dropping a YAML file — no agent restart required. See
-[`docs/collectors.md`](docs/collectors.md) for the primitive reference.
+[`docs/en/collectors.md`](docs/en/collectors.md) for the primitive reference
+([Türkçe](docs/tr/toplayicilar.md)). Full docs index: [`docs/`](docs/README.md).
 
 ## What ships with the agent — collector profiles
 
@@ -218,9 +219,11 @@ both (manifest: `.release-please-manifest.json`, config: `release-please-config.
 
 ## Protocol
 
-The heartbeat payload contract lives in [`docs/protocol.md`](docs/protocol.md).
-Both the agent and ICLIC pin a `protocolVersion`. ICLIC accepts the last
-N versions; the agent emits the latest it knows.
+The heartbeat payload contract lives in [`docs/en/protocol.md`](docs/en/protocol.md)
+([Türkçe](docs/tr/protokol.md)). Both the agent and ICLIC pin a `protocolVersion`.
+ICLIC accepts the last N versions; the agent emits the latest it knows.
+
+Full documentation (EN + TR) is indexed at [`docs/`](docs/README.md).
 
 ## Build from source
 

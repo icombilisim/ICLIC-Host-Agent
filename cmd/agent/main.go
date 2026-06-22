@@ -3,7 +3,7 @@
 // The agent's only job is to send a periodic heartbeat to the ICLIC backend.
 // The metric body is produced by a pluggable collector pipeline reading
 // /etc/iclic-host-agent/collectors.d/*.yaml — see internal/collectors and
-// docs/collectors.md for the operator-facing schema.
+// docs/en/collectors.md for the operator-facing schema.
 package main
 
 import (

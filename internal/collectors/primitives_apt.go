@@ -16,7 +16,7 @@ import (
 //	int >= 0       — actual count
 //	int == -1      — agent could not determine (apt locked, missing,
 //	                 timed out). Matches the sentinel documented in
-//	                 docs/protocol.md so the UI can render "unknown".
+//	                 docs/en/protocol.md so the UI can render "unknown".
 //
 // Never returns an error — operators on RHEL/CentOS hosts see -1, which is
 // the right "not applicable" signal until a dnf-flavored primitive exists.
