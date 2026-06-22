@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.17.0...v0.18.0) (2026-06-22)
+
+
+### Features
+
+* nightly root auto-updater with health-gate and rollback ([#43](https://github.com/icombilisim/ICLIC-Host-Agent/issues/43)) ([#44](https://github.com/icombilisim/ICLIC-Host-Agent/issues/44)) ([6a2d207](https://github.com/icombilisim/ICLIC-Host-Agent/commit/6a2d207d469607897ede20506f729d3257b6a738))
+
 ## [0.17.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.16.0...v0.17.0) (2026-06-22)
 
 
