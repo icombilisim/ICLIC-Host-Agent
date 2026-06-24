@@ -1,0 +1,52 @@
+# AI Gateway (AIGW) runtime monitoring — ICOSYS TEST host variant.
+#
+# AIGW is a standalone product (not an ICOSYS module): Python/FastAPI, run as
+# container `icosys-aigw` with port 8095 published on loopback
+# (127.0.0.1:8095->8095). Liveness is `GET /health` -> {"status":"ok",...};
+# the running version comes from the OpenAPI document
+# (`GET /openapi.json` -> info.version). Health returns `ok`, not the Spring
+# `UP`, so expected_status is overridden. (#46)
+#
+# WHY a per-host file (90-aigw-test vs 90-aigw-prod): ICLIC dedups runtime
+# instances on (runtime_component, instance_key) and does NOT fold the
+# reporting server into that key. The agent always sends instance_key
+# verbatim, so two hosts sharing one instance_key collide into a single row
+# (last write wins). Test and prod therefore need distinct instance_key values
+# and already run under different container names (icosys-aigw / iclic-aigw).
+# AIGW has no in-app heartbeat scheduler (unlike icglb), so the host agent is
+# the only source of its deployment status. (#46)
+
+- id: aigw_runtime_instances
+  primitive: runtime.services
+  args:
+    timeout_sec: 5
+    services:
+      - product_code: AIGW
+        component_code: aigateway
+        name: AI Gateway
+        container: icosys-aigw
+        instance_key: aigateway@test
+        environment: TEST
+        probe: http
+        expected_status: ok
+        health_url: http://127.0.0.1:8095/health
+        info_url: http://127.0.0.1:8095/openapi.json
+        version_path: info.version
+  output_key: runtime_instances
+
+# ─── Flat raw-heartbeat views (parity with the other profiles) ──────
+- id: aigw_health
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8095/health
+    path: status
+    timeout_sec: 3
+  output_key: aigw_health
+
+- id: aigw_app_version
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8095/openapi.json
+    path: info.version
+    timeout_sec: 3
+  output_key: aigw_app_version

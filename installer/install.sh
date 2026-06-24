@@ -20,7 +20,7 @@
 #   AGENT_VERSION  release tag to install (default: latest)
 #   PROFILES       comma-separated collector profiles (default: host,docker,systemd)
 #                  available: host, docker, systemd, icosys, mysql, redis,
-#                             nginx, iclic, devops
+#                             nginx, iclic, devops, aigw-test, aigw-prod
 #   INSTALL_DIR    default /opt/iclic-host-agent
 #   CONFIG_DIR     default /etc/iclic-host-agent
 #   STATE_DIR      default /var/lib/iclic-host-agent
@@ -326,6 +326,11 @@ declare -A PROFILE_TO_FILE=(
   [nginx]=60-nginx.yaml
   [iclic]=70-iclic.yaml
   [devops]=80-devops-stack.yaml
+  # AI Gateway is monitored per-host: test and prod need distinct instance_key
+  # values (ICLIC dedup ignores the reporting server), so each host gets its
+  # own file with the right container name + key. (#46)
+  [aigw-test]=90-aigw-test.yaml
+  [aigw-prod]=90-aigw-prod.yaml
 )
 
 echo ">> Activating profiles: ${PROFILES}"
