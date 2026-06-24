@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.18.0...v0.19.0) (2026-06-24)
+
+
+### Features
+
+* **collectors:** add AI Gateway runtime monitoring profiles ([#46](https://github.com/icombilisim/ICLIC-Host-Agent/issues/46)) ([#47](https://github.com/icombilisim/ICLIC-Host-Agent/issues/47)) ([9e6f0ab](https://github.com/icombilisim/ICLIC-Host-Agent/commit/9e6f0ab71d2799bd127c060589c1262c0104d765))
+
 ## [0.18.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.17.0...v0.18.0) (2026-06-22)
 
 
