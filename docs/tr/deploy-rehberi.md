@@ -1,6 +1,6 @@
 # ICLIC Host Agent — Deploy Rehberi (Aptala Anlatır Gibi)
 
-> **Sürüm** v0.15.0 · **Son güncelleme** 2026-06-22 · **Kanonik dil** İngilizce
+> **Sürüm** v0.15.0 · **Son güncelleme** 2026-06-24 · **Kanonik dil** İngilizce
 > · [ICLIC Host Agent dokümanları](../README.md) bütününün parçası
 
 Bu doküman ICLIC Host Agent'ı release etmek, sunuculara kurmak, yükseltmek ve
@@ -71,17 +71,27 @@ referansı için [`toplayicilar.md`](toplayicilar.md).
 | `nginx` | `60-nginx.yaml` | nginx servisi + 80/443 portları + versiyon |
 | `iclic` | `70-iclic.yaml` | ICLIC Spring Boot (port 8001) actuator |
 | `devops` | `80-devops-stack.yaml` | Nexus + SonarQube + Dokploy + Postgres |
+| `aigw-test` | `90-aigw-test.yaml` | TEST sunucusundaki AI Gateway (`icosys-aigw`, port 8095) |
+| `aigw-prod` | `90-aigw-prod.yaml` | ICLIC-PROD sunucusundaki AI Gateway (`iclic-aigw`, port 8095) |
 
 ### Hangi sunucuya hangileri?
 
 | Sunucu | Profiller |
 |---|---|
-| ICOSYS test | `host,docker,systemd,icosys,mysql,redis,nginx` |
+| ICOSYS test | `host,docker,systemd,icosys,mysql,redis,nginx,aigw-test` |
 | ICOSYS prod | `host,docker,systemd,icosys,mysql,redis,nginx` |
 | DevOps | `host,docker,systemd,devops` |
-| ICLIC prod | `host,docker,systemd,iclic` |
+| ICLIC prod | `host,docker,systemd,iclic,aigw-prod` |
 
 **Kural:** Sunucuda olan şeyleri profil olarak ekle, olmayanları ekleme.
+
+> **AI Gateway neden iki profile bölündü?** ICLIC, runtime instance'ları
+> `(runtime_component, instance_key)` üzerinden tekilleştiriyor ve raporlayan
+> sunucuyu bu anahtara katmıyor; agent ise `instance_key`'i olduğu gibi
+> gönderiyor. Bu yüzden test ve prod gateway'lerinin *farklı* `instance_key`
+> değerleri olmalı — `aigw-test` ve `aigw-prod` her sunucu için doğru container
+> adını ve anahtarı taşıyor. Her gateway sunucusuna sadece birini koy, ikisini
+> birden asla.
 DevOps'ta MySQL yoksa `mysql` profili eklemeye gerek yok — agent o port'u boşuna
 probe etmesin.
 

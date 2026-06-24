@@ -1,0 +1,48 @@
+# AI Gateway (AIGW) runtime monitoring — ICLIC PROD host variant.
+#
+# Same image as the test host, but the prod gateway runs as container
+# `iclic-aigw` (port 8095 published on loopback, 127.0.0.1:8095->8095).
+# Liveness is `GET /health` -> {"status":"ok",...}; the running version comes
+# from the OpenAPI document (`GET /openapi.json` -> info.version). Health
+# returns `ok`, not the Spring `UP`, so expected_status is overridden. (#46)
+#
+# WHY a per-host file: ICLIC dedups runtime instances on
+# (runtime_component, instance_key) without the reporting server, and the
+# agent sends instance_key verbatim — so prod MUST use a distinct
+# instance_key from test or the two collide into one row. See the test
+# variant header (90-aigw-test.yaml) for the full rationale. (#46)
+
+- id: aigw_runtime_instances
+  primitive: runtime.services
+  args:
+    timeout_sec: 5
+    services:
+      - product_code: AIGW
+        component_code: aigateway
+        name: AI Gateway
+        container: iclic-aigw
+        instance_key: aigateway@prod
+        environment: PROD
+        probe: http
+        expected_status: ok
+        health_url: http://127.0.0.1:8095/health
+        info_url: http://127.0.0.1:8095/openapi.json
+        version_path: info.version
+  output_key: runtime_instances
+
+# ─── Flat raw-heartbeat views (parity with the other profiles) ──────
+- id: aigw_health
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8095/health
+    path: status
+    timeout_sec: 3
+  output_key: aigw_health
+
+- id: aigw_app_version
+  primitive: http.get_json
+  args:
+    url: http://127.0.0.1:8095/openapi.json
+    path: info.version
+    timeout_sec: 3
+  output_key: aigw_app_version

@@ -1,6 +1,6 @@
 # Deployment Guide — release, install, upgrade, rollback
 
-> **Version** v0.15.0 · **Last updated** 2026-06-22 · **Canonical language** English
+> **Version** v0.15.0 · **Last updated** 2026-06-24 · **Canonical language** English
 > · part of the [ICLIC Host Agent docs](../README.md)
 
 A step-by-step guide to releasing, installing, upgrading, and rolling back the
@@ -63,15 +63,25 @@ The agent learns its "measure this" list from YAML profiles. Each YAML is a
 | `nginx` | `60-nginx.yaml` | nginx service + 80/443 + version |
 | `iclic` | `70-iclic.yaml` | ICLIC actuator (port 8001) |
 | `devops` | `80-devops-stack.yaml` | Nexus + SonarQube + Dokploy + Postgres |
+| `aigw-test` | `90-aigw-test.yaml` | AI Gateway on the TEST host (`icosys-aigw`, port 8095) |
+| `aigw-prod` | `90-aigw-prod.yaml` | AI Gateway on the ICLIC-PROD host (`iclic-aigw`, port 8095) |
 
 **Rule:** add a profile only for what the host actually runs. Don't probe a port
 nothing listens on.
 
+> **AI Gateway is split into two profiles on purpose.** ICLIC dedups runtime
+> instances on `(runtime_component, instance_key)` and does not fold the
+> reporting server into that key, while the agent sends `instance_key`
+> verbatim. So the test and prod gateways need *distinct* `instance_key`
+> values — `aigw-test` and `aigw-prod` carry the right container name and key
+> for their host. Put exactly one of them on each gateway host; never both.
+
 | Host | Profiles |
 |---|---|
-| ICOSYS test/prod | `host,docker,systemd,icosys,mysql,redis,nginx` |
+| ICOSYS test | `host,docker,systemd,icosys,mysql,redis,nginx,aigw-test` |
+| ICOSYS prod | `host,docker,systemd,icosys,mysql,redis,nginx` |
 | DevOps | `host,docker,systemd,devops` |
-| ICLIC prod | `host,docker,systemd,iclic` |
+| ICLIC prod | `host,docker,systemd,iclic,aigw-prod` |
 
 ## 4. Release flow (maintainers) — release-please
 
