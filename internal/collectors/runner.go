@@ -49,11 +49,30 @@ func Run(ctx context.Context, bindings []Binding, registry map[string]PrimitiveF
 				return
 			}
 			mu.Lock()
-			out[b.OutputKey] = v
+			out[b.OutputKey] = mergeBindingValue(out[b.OutputKey], v)
 			mu.Unlock()
 		}(b, prim)
 	}
 
 	wg.Wait()
 	return out
+}
+
+// mergeBindingValue combines a new binding result with whatever is already
+// stored under the same output_key. Multiple runtime.services bindings (the
+// icosys profile plus a per-host AI Gateway profile) deliberately share the
+// `runtime_instances` key, and the heartbeat sender reads that single key — so
+// their []runtimeSignal slices must be concatenated, not overwritten, or every
+// binding but the last silently vanishes from the runtime signal feed. Any
+// other type keeps last-writer-wins, preserving the prior map semantics. (#49)
+func mergeBindingValue(existing, incoming any) any {
+	if existing == nil {
+		return incoming
+	}
+	if prev, ok := existing.([]runtimeSignal); ok {
+		if next, ok := incoming.([]runtimeSignal); ok {
+			return append(prev, next...)
+		}
+	}
+	return incoming
 }
