@@ -14,6 +14,11 @@ import (
 
 const runtimeDefaultTimeout = 4 * time.Second
 
+// runtimeInfoMaxBytes caps the raw info document embedded in a runtime signal's
+// payload. Larger documents (e.g. an OpenAPI spec served as the version source)
+// are summarised out so the heartbeat stays small and clears the ICLIC WAF. (#52)
+const runtimeInfoMaxBytes = 4096
+
 // runtimeServices converts an operator-owned service registry into ICLIC
 // runtime_instance signals. It never drops a configured service just because
 // the probe failed; failed probes become STALE rows so Fleet shows a broken
@@ -126,7 +131,17 @@ func probeRuntimeService(ctx context.Context, socket string, timeout time.Durati
 		info, infoStatus, infoErr := runtimeJSONProbe(ctx, svc, svc.InfoURL, timeout)
 		payload["infoHttpStatus"] = infoStatus
 		if infoErr == nil {
-			payload["info"] = info
+			// Only embed the raw info document when it is small. Some services
+			// (e.g. the AI Gateway, whose version lives in /openapi.json) return
+			// a large spec; embedding it bloats every heartbeat and trips the
+			// ICLIC WAF on the runtime-instances POST (HTTP 400). The version and
+			// commit we actually need are extracted into dedicated fields below,
+			// so capping the raw embed loses nothing operationally. (#52)
+			if embedded, ok := infoWithinEmbedCap(info); ok {
+				payload["info"] = embedded
+			} else {
+				payload["infoOmitted"] = "info document exceeds embed cap"
+			}
 			signal.RunningVersion = stringAtPath(info, svc.VersionPath, "app.version", "build.version")
 			signal.GitCommit = stringAtPath(info, svc.GitCommitPath, "git.commit.id")
 		} else {
@@ -136,6 +151,17 @@ func probeRuntimeService(ctx context.Context, socket string, timeout time.Durati
 
 	signal.Status = "HEALTHY"
 	return signal
+}
+
+// infoWithinEmbedCap returns the info document and true when it is small enough
+// to embed in a heartbeat payload, or nil/false when it serialises to more than
+// runtimeInfoMaxBytes (see that constant for the WAF rationale). (#52)
+func infoWithinEmbedCap(info any) (any, bool) {
+	raw, err := json.Marshal(info)
+	if err != nil || len(raw) > runtimeInfoMaxBytes {
+		return nil, false
+	}
+	return info, true
 }
 
 func dockerContainerState(ctx context.Context, socket, container string, timeout time.Duration) (string, error) {
