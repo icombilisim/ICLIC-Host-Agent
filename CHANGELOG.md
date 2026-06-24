@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.19.0...v0.19.1) (2026-06-24)
+
+
+### Bug Fixes
+
+* **collectors:** merge runtime.services bindings sharing an output_key ([#49](https://github.com/icombilisim/ICLIC-Host-Agent/issues/49)) ([#50](https://github.com/icombilisim/ICLIC-Host-Agent/issues/50)) ([f68db28](https://github.com/icombilisim/ICLIC-Host-Agent/commit/f68db2862dce85e243328436399a8c438ce506ec))
+
 ## [0.19.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.18.0...v0.19.0) (2026-06-24)
 
 
