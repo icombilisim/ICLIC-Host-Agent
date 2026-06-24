@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.19.1...v0.19.2) (2026-06-24)
+
+
+### Bug Fixes
+
+* **collectors:** cap embedded runtime info document to clear the WAF ([#52](https://github.com/icombilisim/ICLIC-Host-Agent/issues/52)) ([#53](https://github.com/icombilisim/ICLIC-Host-Agent/issues/53)) ([233d544](https://github.com/icombilisim/ICLIC-Host-Agent/commit/233d54495e3c856e4bb736601e82f38fc09092da))
+
 ## [0.19.1](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.19.0...v0.19.1) (2026-06-24)
 
 
