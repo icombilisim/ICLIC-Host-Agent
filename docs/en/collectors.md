@@ -1,6 +1,6 @@
 # Operator-defined collectors
 
-> **Version** v0.15.0 · **Last updated** 2026-06-22 · **Canonical language** English
+> **Version** v0.20.0 · **Last updated** 2026-06-25 · **Canonical language** English
 > · part of the [ICLIC Host Agent docs](../README.md)
 
 The agent's metric body is built from one or more YAML files in
@@ -322,6 +322,16 @@ Service entry fields:
 | environment     | no       | `PROD`, `TEST`, `STAGING`, or `DEV` when known |
 | version_path    | no       | JSON dot path for version; defaults to `app.version`, then `build.version` |
 | git_commit_path | no       | JSON dot path for commit; defaults to `git.commit.id` |
+
+**Version source.** When `container` is set, the running version is taken from the
+container's OCI image label **`org.opencontainers.image.version`** — the canonical
+release version baked at build and preserved across promote-by-retag (it lives in
+the image config, not the mutable tag). This is read from the same container
+inspect used for the run state, so it costs no extra Docker API call and needs no
+per-service config. If the image has no such label (label-less / non-ICOM images),
+it falls back to the actuator `info` document (`version_path` → `app.version` →
+`build.version`). The `com.icom.image.rc` label, when present, is reported as
+`buildRef` (RC provenance, shown separately from the version on test rows). (#55)
 
 Example:
 

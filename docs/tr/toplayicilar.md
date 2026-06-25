@@ -1,6 +1,6 @@
 # Operatör tanımlı toplayıcılar (collectors)
 
-> **Sürüm** v0.15.0 · **Son güncelleme** 2026-06-22 · **Kanonik dil** İngilizce
+> **Sürüm** v0.20.0 · **Son güncelleme** 2026-06-25 · **Kanonik dil** İngilizce
 > · [ICLIC Host Agent dokümanları](../README.md) bütününün parçası
 
 Ajanın metrik gövdesi `/etc/iclic-host-agent/collectors.d/` içindeki bir veya
@@ -325,6 +325,16 @@ Servis girdisi alanları:
 | environment     | hayır   | Biliniyorsa `PROD`, `TEST`, `STAGING` veya `DEV` |
 | version_path    | hayır   | Versiyon için JSON dot path; varsayılanı `app.version`, sonra `build.version` |
 | git_commit_path | hayır   | Commit için JSON dot path; varsayılanı `git.commit.id` |
+
+**Versiyon kaynağı.** `container` ayarlıysa çalışan versiyon, container'ın OCI image
+label'ından **`org.opencontainers.image.version`** alınır — build anında basılan ve
+promote-by-retag boyunca korunan kanonik release versiyonu (mutable tag'de değil,
+image config'inde durur). Bu, run-state için yapılan aynı container inspect'inden
+okunur; ekstra Docker API çağrısı yok, servis-başına config gerektirmez. Image'da bu
+label yoksa (label'sız / ICOM-dışı imajlar) actuator `info` dokümanına düşer
+(`version_path` → `app.version` → `build.version`). `com.icom.image.rc` label'ı
+varsa `buildRef` olarak raporlanır (RC provenance; test satırlarında versiyondan
+ayrı gösterilir). (#55)
 
 Örnek:
 
