@@ -207,6 +207,7 @@ type RuntimeSignal struct {
 	Status             string         `json:"status,omitempty"`
 	VersionSource      string         `json:"versionSource,omitempty"`
 	RunningVersion     string         `json:"runningVersion,omitempty"`
+	BuildRef           string         `json:"buildRef,omitempty"`
 	GitCommit          string         `json:"gitCommit,omitempty"`
 	BuildTime          string         `json:"buildTime,omitempty"`
 	Notes              string         `json:"notes,omitempty"`

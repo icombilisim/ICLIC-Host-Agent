@@ -74,6 +74,7 @@ type runtimeSignal struct {
 	Status         string         `json:"status,omitempty"`
 	VersionSource  string         `json:"versionSource,omitempty"`
 	RunningVersion string         `json:"runningVersion,omitempty"`
+	BuildRef       string         `json:"buildRef,omitempty"`
 	GitCommit      string         `json:"gitCommit,omitempty"`
 	Notes          string         `json:"notes,omitempty"`
 	Payload        map[string]any `json:"payload,omitempty"`
@@ -99,16 +100,28 @@ func probeRuntimeService(ctx context.Context, socket string, timeout time.Durati
 	}
 
 	if svc.Container != "" {
-		state, err := dockerContainerState(ctx, socket, svc.Container, timeout)
+		inspect, err := dockerContainerState(ctx, socket, svc.Container, timeout)
 		if err != nil {
 			signal.Notes = err.Error()
 			payload["error"] = err.Error()
 			return signal
 		}
-		payload["containerState"] = state
-		if state != "running" {
-			signal.Notes = "container is " + state
+		payload["containerState"] = inspect.Status
+		if inspect.Status != "running" {
+			signal.Notes = "container is " + inspect.Status
 			return signal
+		}
+		// Prefer the OCI image version label — the canonical release version baked
+		// at build and preserved across promote-by-retag (it lives in the image
+		// config/digest), unlike the actuator's build.version which can be a frozen
+		// artifact version. com.icom.image.rc is the RC provenance (test). Read from
+		// the inspect we already made — no extra Docker API call. (#55)
+		if v := strings.TrimSpace(inspect.Labels["org.opencontainers.image.version"]); v != "" {
+			signal.RunningVersion = v
+			payload["versionFrom"] = "image-label"
+		}
+		if rc := strings.TrimSpace(inspect.Labels["com.icom.image.rc"]); rc != "" {
+			signal.BuildRef = rc
 		}
 	}
 
@@ -142,7 +155,11 @@ func probeRuntimeService(ctx context.Context, socket string, timeout time.Durati
 			} else {
 				payload["infoOmitted"] = "info document exceeds embed cap"
 			}
-			signal.RunningVersion = stringAtPath(info, svc.VersionPath, "app.version", "build.version")
+			// Fall back to the actuator-reported version only when no OCI image
+			// label provided one (label-less images / non-ICOM services). (#55)
+			if signal.RunningVersion == "" {
+				signal.RunningVersion = stringAtPath(info, svc.VersionPath, "app.version", "build.version")
+			}
 			signal.GitCommit = stringAtPath(info, svc.GitCommitPath, "git.commit.id")
 		} else {
 			payload["infoError"] = infoErr.Error()
@@ -164,19 +181,32 @@ func infoWithinEmbedCap(info any) (any, bool) {
 	return info, true
 }
 
-func dockerContainerState(ctx context.Context, socket, container string, timeout time.Duration) (string, error) {
+// dockerContainerInspect is the slice of `/containers/<name>/json` we need: the
+// run state plus the container's labels, which include the image's OCI labels
+// merged at create time — so we read the canonical version without a second API
+// call. (#55)
+type dockerContainerInspect struct {
+	Status string
+	Labels map[string]string
+}
+
+func dockerContainerState(ctx context.Context, socket, container string, timeout time.Duration) (dockerContainerInspect, error) {
 	var inspect struct {
 		State struct {
 			Status string `json:"Status"`
 		} `json:"State"`
+		Config struct {
+			Labels map[string]string `json:"Labels"`
+		} `json:"Config"`
 	}
 	if err := dockerGet(ctx, socket, "/containers/"+container+"/json", timeout, &inspect); err != nil {
-		return "missing", err
+		return dockerContainerInspect{Status: "missing"}, err
 	}
-	if inspect.State.Status == "" {
-		return "unknown", nil
+	status := inspect.State.Status
+	if status == "" {
+		status = "unknown"
 	}
-	return inspect.State.Status, nil
+	return dockerContainerInspect{Status: status, Labels: inspect.Config.Labels}, nil
 }
 
 func runtimeJSONProbe(ctx context.Context, svc runtimeServiceConfig, url string,
