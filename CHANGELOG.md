@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.19.2...v0.20.0) (2026-06-25)
+
+
+### Features
+
+* **collectors:** read runtime version from OCI image label ([#55](https://github.com/icombilisim/ICLIC-Host-Agent/issues/55)) ([#56](https://github.com/icombilisim/ICLIC-Host-Agent/issues/56)) ([21eb806](https://github.com/icombilisim/ICLIC-Host-Agent/commit/21eb80618acecf9ef52666d218f5591f5b56e51d))
+
 ## [0.19.2](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.19.1...v0.19.2) (2026-06-24)
 
 
