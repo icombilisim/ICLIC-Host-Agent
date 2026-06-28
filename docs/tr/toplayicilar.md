@@ -383,6 +383,41 @@ döner. RHEL/CentOS'ta veya apt kilitli / eksik / timeout olduğunda `-1` döner
 host'lar, bir `dnf.security_count` primitive'i çıkana dek doğru "bilinmiyor"
 sinyalini alsın.
 
+### security.snapshot
+
+Haftalık fleet güvenlik digest'i için bileşik güvenlik telemetrisi: WAF /
+ModSecurity blokları, nginx 4xx, fail2ban banları ve firewall drop'ları — hepsi
+backend'in sunucu başına sakladığı iç içe `security_snapshot` nesnesinde. Her alt
+kaynak yoksa **kendini atlar** (eksik container, okunamayan log, yetki yok), bu
+yüzden binding her host'ta güvenli ve yeni sunucu config'siz uyum sağlar.
+
+Her heartbeat'te log taramamak için en çok `window_seconds`'te bir toplar,
+aradaki tick'lerde önbellekteki snapshot'ı döner (aynı bytes → backend dedup
+eder, pencere başına tek satır saklar). WAF/nginx sayıları docker socket'ten
+container log'undan; fail2ban sayıları auto-ban log dosyasından; firewall
+drop'ları `CAP_NET_ADMIN` ister (olmadan kendini atlar).
+
+| Arg            | Tip    | Varsayılan                                   | Açıklama |
+|----------------|--------|----------------------------------------------|----------|
+| window_seconds | number | `3600`                                       | Toplama penceresi + cadence |
+| socket         | string | `/var/run/docker.sock`                       | Unix socket yolu |
+| waf_container  | string | `icosys-waf`                                 | ModSecurity container adı |
+| nginx_container| string | `icosys-nginx`                               | nginx container adı |
+| banned_ips_log | string | `/var/lib/icosys/auto-ban/banned-ips.log`    | auto-ban log dosyası |
+| firewall_chain | string | `DOCKER-USER`                                | DROP paketleri toplanacak iptables zinciri |
+
+Şekil (yok olan kaynaklar atlanır):
+
+```
+{
+  collected_at, window_seconds,
+  waf:      { blocked, by_class: { sqli, rce, lfi, ... } },
+  nginx:    { http_4xx, http_403, http_429 },
+  fail2ban: { banned_total, banned_window },
+  firewall: { dropped_packets }
+}
+```
+
 ## Yeni bir dosya ekleme
 
 ```yaml

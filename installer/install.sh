@@ -331,6 +331,9 @@ declare -A PROFILE_TO_FILE=(
   # own file with the right container name + key. (#46)
   [aigw-test]=90-aigw-test.yaml
   [aigw-prod]=90-aigw-prod.yaml
+  # Fleet security telemetry (WAF blocks, nginx 4xx, fail2ban bans, firewall
+  # drops) for the weekly security digest. Self-skips absent sources. (#707)
+  [security]=94-security.yaml
 )
 
 echo ">> Activating profiles: ${PROFILES}"

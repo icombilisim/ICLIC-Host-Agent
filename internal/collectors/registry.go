@@ -36,5 +36,6 @@ func DefaultRegistry() map[string]PrimitiveFunc {
 		"docker.containers":       dockerContainers,
 		"docker.stats":            dockerStats,
 		"runtime.services":        runtimeServices,
+		"security.snapshot":       securitySnapshot,
 	}
 }

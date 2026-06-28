@@ -177,6 +177,7 @@ add more (or remove some) without an agent code change.
 | `metrics.disk_used_pct_max` | Max `used_pct` across `disks[]`; the backend `buildSummary` reads this directly. |
 | `metrics.os_security_updates_pending` | `-1` means "agent could not determine" (apt locked, RHEL host without dnf primitive, etc.) |
 | `metrics.reported_at` | Agent-side wall clock at sample time. ICLIC also stamps its own `received_at`; the two are kept separate so clock skew is observable. |
+| `metrics.security_snapshot` | Nested object from the `security.snapshot` collector (WAF/nginx/fail2ban/firewall). Emitted at most once per its window; ICLIC stores it to `fleet_security_snapshot` (deduping the cached repeats) for the weekly security digest. Absent sources are omitted. |
 | Anything else | Free-form — operator-defined bindings produce whatever keys they declare. The backend stores the full payload verbatim in `server_heartbeat_history.payload_json`. |
 
 ## Versioning rules
