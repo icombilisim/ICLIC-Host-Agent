@@ -1,0 +1,24 @@
+# Fleet security telemetry. One composite binding gathers WAF/ModSecurity
+# blocks, nginx 4xx, fail2ban bans and firewall drops into a nested
+# `security_snapshot` the backend stores for the weekly fleet security digest.
+#
+# Each sub-source self-skips when absent, so this profile is safe on any host:
+#   - WAF/nginx counts come from the container logs via the docker socket
+#     (the agent is already in the docker group).
+#   - fail2ban counts come from reading the auto-ban log file.
+#   - firewall drops need CAP_NET_ADMIN; without it the agent self-skips that
+#     one source (the rest still report).
+#
+# Collected once per window_seconds (default 1h) — log scans are too heavy to
+# run every heartbeat; the backend dedups the cached snapshot in between.
+# Override container names / paths via args on a per-host basis if they differ.
+
+- id: security_snapshot
+  primitive: security.snapshot
+  args:
+    window_seconds: 3600
+    waf_container: icosys-waf
+    nginx_container: icosys-nginx
+    banned_ips_log: /var/lib/icosys/auto-ban/banned-ips.log
+    firewall_chain: DOCKER-USER
+  output_key: security_snapshot

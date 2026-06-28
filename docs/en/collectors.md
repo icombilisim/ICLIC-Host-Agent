@@ -380,6 +380,41 @@ documented sentinel for "agent could not determine". Never errors so non-Debian
 hosts get the right "unknown" signal until a `dnf.security_count` primitive
 exists.
 
+### security.snapshot
+
+Composite security telemetry for the weekly fleet security digest: WAF /
+ModSecurity blocks, nginx 4xx, fail2ban bans and firewall drops, bundled into a
+nested `security_snapshot` object the backend stores per server. Each sub-source
+**self-skips** when absent (missing container, unreadable log, no privilege), so
+the binding is safe on any host and a new server adapts with no config.
+
+To avoid scanning logs on every heartbeat, it collects at most once per
+`window_seconds` and returns the cached snapshot in between (same bytes → the
+backend dedups, storing one row per window). WAF/nginx counts come from the
+container logs over the docker socket; fail2ban counts from reading the auto-ban
+log file; firewall drops need `CAP_NET_ADMIN` (self-skips without it).
+
+| Arg            | Type   | Default                                      | Description |
+|----------------|--------|----------------------------------------------|-------------|
+| window_seconds | number | `3600`                                       | Collection window + cadence |
+| socket         | string | `/var/run/docker.sock`                       | Unix socket path |
+| waf_container  | string | `icosys-waf`                                 | ModSecurity container name |
+| nginx_container| string | `icosys-nginx`                               | nginx container name |
+| banned_ips_log | string | `/var/lib/icosys/auto-ban/banned-ips.log`    | auto-ban log file |
+| firewall_chain | string | `DOCKER-USER`                                | iptables chain to sum DROP packets |
+
+Shape (sources absent are omitted):
+
+```
+{
+  collected_at, window_seconds,
+  waf:      { blocked, by_class: { sqli, rce, lfi, ... } },
+  nginx:    { http_4xx, http_403, http_429 },
+  fail2ban: { banned_total, banned_window },
+  firewall: { dropped_packets }
+}
+```
+
 ## Adding a new file
 
 ```yaml
