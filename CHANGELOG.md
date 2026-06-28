@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.20.0...v0.21.0) (2026-06-28)
+
+
+### Features
+
+* **collectors:** add security.snapshot collector ([#707](https://github.com/icombilisim/ICLIC-Host-Agent/issues/707)) ([#58](https://github.com/icombilisim/ICLIC-Host-Agent/issues/58)) ([e8e09f7](https://github.com/icombilisim/ICLIC-Host-Agent/commit/e8e09f769acc272b59c80bee7ae0138dfc46f286))
+
 ## [0.20.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.19.2...v0.20.0) (2026-06-25)
 
 
