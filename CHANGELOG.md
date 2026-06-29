@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.22.0...v0.22.1) (2026-06-29)
+
+
+### Bug Fixes
+
+* **installer:** rename posture profile to security-posture to end key collision ([#63](https://github.com/icombilisim/ICLIC-Host-Agent/issues/63)) ([#64](https://github.com/icombilisim/ICLIC-Host-Agent/issues/64)) ([d09cb26](https://github.com/icombilisim/ICLIC-Host-Agent/commit/d09cb26d9e22609196ad31f0e5c850d48bad1558))
+
 ## [0.22.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.21.0...v0.22.0) (2026-06-29)
 
 
