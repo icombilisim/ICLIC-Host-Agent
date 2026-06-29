@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.21.0...v0.22.0) (2026-06-29)
+
+
+### Features
+
+* **collectors:** add opt-in security profile for posture inventory ([#60](https://github.com/icombilisim/ICLIC-Host-Agent/issues/60)) ([#61](https://github.com/icombilisim/ICLIC-Host-Agent/issues/61)) ([4554d03](https://github.com/icombilisim/ICLIC-Host-Agent/commit/4554d03b5014eeac03aa2f4c4ba5570faeeebf69))
+
 ## [0.21.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.20.0...v0.21.0) (2026-06-28)
 
 
