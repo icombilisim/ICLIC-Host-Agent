@@ -319,6 +319,7 @@ tar -xzf "${WORK_DIR}/configs.tar.gz" -C "${WORK_DIR}/configs"
 declare -A PROFILE_TO_FILE=(
   [host]=00-linux-host.yaml
   [docker]=10-docker.yaml
+  [security]=15-security.yaml
   [systemd]=20-systemd.yaml
   [icosys]=30-icosys-actuator.yaml
   [mysql]=40-mysql.yaml
