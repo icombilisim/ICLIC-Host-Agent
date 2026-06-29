@@ -1,0 +1,61 @@
+# Security posture inventory — OPT-IN, operator-tailored. (#746)
+#
+# This profile reports WHICH security services a host runs and their health, plus
+# a small log-freshness inventory, so the ICLIC Fleet "Security" tab can show a
+# per-server posture next to the WAF/ban/4xx counters.
+#
+# IMPORTANT — this is a *starting template*, not a fixed contract:
+#   * The agent does NOT autodiscover. Edit the lists below to match THIS host.
+#   * Source-agnostic: ICLIC renders whatever you report here. A host that uses a
+#     different stack (Wazuh, OSSEC, CrowdSec, auditd, Suricata, a managed SIEM,
+#     or nothing) just lists its own units/logs — nothing is assumed.
+#   * Graceful: a unit that isn't installed reports inactive; a missing log
+#     reports age_seconds = -1. Neither is an error, and neither is treated as a
+#     "down" alarm by ICLIC — only a unit you DO list that is inactive surfaces
+#     as a posture warning (you listed it ⇒ you expect it running).
+#   * Per-host overrides: drop a tailored copy in collectors.d (re-read every
+#     tick, no restart). System hygiene (kernel, pending security updates, reboot
+#     flag) and TLS cert expiry already ship via 00-linux-host.yaml / 90-tls.yaml
+#     — not duplicated here.
+
+# ── Security service matrix + health ───────────────────────────────────────
+# One nested array of {unit, activeState, subState, mainPID, memory, restarts}.
+# List the security daemons THIS host runs — replace/extend freely. Examples for
+# other stacks are commented; uncomment what applies.
+- id: security_units
+  primitive: systemd.resources
+  args:
+    units:
+      - "fail2ban.service"      # host-level IP banning (ICOM default)
+      - "ssh.service"           # sshd
+      - "ufw.service"           # host firewall (if used)
+      # - "nftables.service"
+      # - "crowdsec.service"    # CrowdSec engine
+      # - "auditd.service"      # Linux audit daemon
+      # - "wazuh-agent.service" # Wazuh / OSSEC SIEM agent
+      # - "suricata.service"    # IDS/IPS
+      # - "clamav-daemon.service"
+      - "docker.service"        # WAF/nginx run as containers on ICOM hosts
+  output_key: security_units
+
+# ── Security log freshness inventory ───────────────────────────────────────
+# "Is the log still being written?" via file age (seconds since last write;
+# -1 = file absent). Add one size + one age binding per log you care about.
+# NOTE: ICOM's nginx/ModSecurity run INSIDE containers, so their logs are not on
+# the host filesystem — read those with a docker-aware override if you need them.
+- id: seclog_auth_age
+  primitive: file.stat
+  args: { path: /var/log/auth.log, field: age_seconds }
+  output_key: seclog_auth_age
+- id: seclog_auth_size
+  primitive: file.stat
+  args: { path: /var/log/auth.log, field: size_bytes }
+  output_key: seclog_auth_size
+- id: seclog_fail2ban_age
+  primitive: file.stat
+  args: { path: /var/log/fail2ban.log, field: age_seconds }
+  output_key: seclog_fail2ban_age
+- id: seclog_fail2ban_size
+  primitive: file.stat
+  args: { path: /var/log/fail2ban.log, field: size_bytes }
+  output_key: seclog_fail2ban_size
