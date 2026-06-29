@@ -64,7 +64,8 @@ referansı için [`toplayicilar.md`](toplayicilar.md).
 |---|---|---|
 | `host` | `00-linux-host.yaml` | CPU, RAM, disk, uptime, OS, kernel — **HER SUNUCUDA OLMALI** |
 | `docker` | `10-docker.yaml` | Docker container sayısı + per-container stats |
-| `security` | `15-security.yaml` | Güvenlik servis matrisi + health ve log-tazelik envanteri (operatöre göre düzenlenir; unit/log listesini sunucunun stack'ine/SIEM'ine göre değiştirin) |
+| `security-posture` | `15-security.yaml` | Güvenlik servis matrisi + health ve log-tazelik envanteri (operatöre göre düzenlenir; unit/log listesini sunucunun stack'ine/SIEM'ine göre değiştirin) |
+| `security` | `94-security.yaml` | Filo güvenlik telemetri sayaçları (WAF blokları, nginx 4xx, fail2ban banları, firewall drop'ları) — haftalık digest için; eksik kaynakları atlar |
 | `systemd` | `20-systemd.yaml` | systemd unit'lerin cgroup CPU/MEM kullanımı |
 | `icosys` | `30-icosys-actuator.yaml` | 6 ICOSYS Spring Boot servisi (8010-8060) — health/heap/threads |
 | `mysql` | `40-mysql.yaml` | MySQL portu açık mı + versiyon |
