@@ -56,7 +56,8 @@ The agent learns its "measure this" list from YAML profiles. Each YAML is a
 |---|---|---|
 | `host` | `00-linux-host.yaml` | CPU, RAM, disk, uptime, OS, kernel — **REQUIRED ON EVERY HOST** |
 | `docker` | `10-docker.yaml` | Container count + per-container stats |
-| `security` | `15-security.yaml` | Security-service matrix + health and log-freshness inventory (operator-tailored; edit the unit/log lists to match the host's stack/SIEM) |
+| `security-posture` | `15-security.yaml` | Security-service matrix + health and log-freshness inventory (operator-tailored; edit the unit/log lists to match the host's stack/SIEM) |
+| `security` | `94-security.yaml` | Fleet security telemetry counters (WAF blocks, nginx 4xx, fail2ban bans, firewall drops) for the weekly digest; self-skips absent sources |
 | `systemd` | `20-systemd.yaml` | cgroup CPU/MEM of systemd units |
 | `icosys` | `30-icosys-actuator.yaml` | 6 ICOSYS Spring Boot services (8010–8060) |
 | `mysql` | `40-mysql.yaml` | MySQL port + version |

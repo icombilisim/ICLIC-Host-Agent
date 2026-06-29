@@ -19,8 +19,9 @@
 # Optional:
 #   AGENT_VERSION  release tag to install (default: latest)
 #   PROFILES       comma-separated collector profiles (default: host,docker,systemd)
-#                  available: host, docker, systemd, icosys, mysql, redis,
-#                             nginx, iclic, devops, aigw-test, aigw-prod
+#                  available: host, docker, security-posture, systemd, icosys,
+#                             mysql, redis, nginx, iclic, devops, aigw-test,
+#                             aigw-prod, security
 #   INSTALL_DIR    default /opt/iclic-host-agent
 #   CONFIG_DIR     default /etc/iclic-host-agent
 #   STATE_DIR      default /var/lib/iclic-host-agent
@@ -319,7 +320,9 @@ tar -xzf "${WORK_DIR}/configs.tar.gz" -C "${WORK_DIR}/configs"
 declare -A PROFILE_TO_FILE=(
   [host]=00-linux-host.yaml
   [docker]=10-docker.yaml
-  [security]=15-security.yaml
+  # Security-posture inventory: service matrix + health + log freshness. Distinct
+  # from the `security` digest profile below — different file, both opt-in. (#746)
+  [security-posture]=15-security.yaml
   [systemd]=20-systemd.yaml
   [icosys]=30-icosys-actuator.yaml
   [mysql]=40-mysql.yaml
