@@ -1,0 +1,35 @@
+# Hardware identity + maintenance inventory, collected through the generic
+# `exec` primitive (the sanctioned operator-extension path) so no Go change is
+# needed. Every binding is best-effort and runs as the UNPRIVILEGED agent user:
+# a host missing the tool, or a command that needs more privilege, simply omits
+# its key and ICLIC renders "-". The report always shows the rows. (#796)
+#
+# Note: RAM make/speed (dmidecode -t memory) is intentionally NOT here — it
+# requires root, which the agent deliberately does not have, so it would always
+# come back empty. Surface that from a root-side collector if ever needed.
+
+# CPU brand/model string, e.g. "Intel(R) Xeon(R) E5-2680 v4". /proc/cpuinfo is
+# world-readable — no root needed.
+- id: cpu_model
+  primitive: exec
+  args:
+    cmd:
+      - sh
+      - -c
+      - 'grep -m1 "model name" /proc/cpuinfo | cut -d: -f2- | sed "s/^ *//"'
+    parse: trimmed
+  output_key: cpu_model
+
+# Upgradable packages, one per line: "pkg/repo newver arch [upgradable from: oldver]".
+# ICLIC parses each line into {package, current, available}. `apt list` reads the
+# local cache as a normal user. Debian/apt hosts only; others omit the key.
+- id: apt_upgradable
+  primitive: exec
+  args:
+    cmd:
+      - sh
+      - -c
+      - 'apt list --upgradable 2>/dev/null | grep -v "^Listing"'
+    parse: raw
+    timeout_sec: 10
+  output_key: apt_upgradable

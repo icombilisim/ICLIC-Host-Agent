@@ -21,3 +21,53 @@
     timeout_sec: 5
     parse: trimmed
   output_key: mysql_version
+
+# Per-database on-disk size in MB for the report's "Databases" table. Uses the
+# same containerized access as the version probe (root socket auth inside the
+# container — no password in this file). System schemas are filtered ICLIC-side.
+# Output is tab-separated "schema\tsize_mb" lines (-N no header, -B batch). On a
+# host MySQL stack swap the docker exec for a plain `mysql`; add `-u/-p` if the
+# container's root needs a password. Best-effort: omitted when the query can't run. (#796)
+- id: mysql_db_sizes
+  primitive: exec
+  args:
+    cmd:
+      - sh
+      - -c
+      - 'docker exec icosys-mysql mysql -N -B -e "SELECT table_schema, ROUND(SUM(data_length+index_length)/1048576,1) FROM information_schema.tables GROUP BY table_schema ORDER BY 2 DESC"'
+    timeout_sec: 10
+    parse: raw
+  output_key: mysql_db_sizes
+
+# Connections per database, a point-in-time snapshot from
+# information_schema.processlist (taken at heartbeat time): total connections and
+# the actively-running subset (command != 'Sleep'). Output is tab-separated
+# "schema\ttotal\tactive" lines. Pairs with mysql_db_sizes in the report's
+# "Databases" table. Best-effort: omitted when the query can't run. (#796)
+- id: mysql_db_connections
+  primitive: exec
+  args:
+    cmd:
+      - sh
+      - -c
+      - 'docker exec icosys-mysql mysql -N -B -e "SELECT db, COUNT(*), SUM(IF(command=''Sleep'',0,1)) FROM information_schema.processlist WHERE db IS NOT NULL GROUP BY db ORDER BY 2 DESC"'
+    timeout_sec: 10
+    parse: raw
+  output_key: mysql_db_connections
+
+# Active application users on the ICOSYS core, from icglb2.s_active_session (one
+# row per live refresh token). last_used_at within 15 min ≈ currently online.
+# Output is one tab-separated "sessions\tusers" line. Core only — there is one
+# session authority; the JWT is shared across all services, so per-service user
+# counts do not exist. Adjust the schema if core lives elsewhere. Best-effort:
+# omitted when the query can't run (no core DB on this host). (#796)
+- id: mysql_active_users
+  primitive: exec
+  args:
+    cmd:
+      - sh
+      - -c
+      - 'docker exec icosys-mysql mysql -N -B -e "SELECT COUNT(*), COUNT(DISTINCT user_process_id) FROM icglb2.s_active_session WHERE last_used_at > (NOW() - INTERVAL 15 MINUTE)"'
+    timeout_sec: 10
+    parse: raw
+  output_key: mysql_active_users
