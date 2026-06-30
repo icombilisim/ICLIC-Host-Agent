@@ -28,7 +28,12 @@
     units:
       - "fail2ban.service"      # host-level IP banning (ICOM default)
       - "ssh.service"           # sshd
-      - "ufw.service"           # host firewall (if used)
+      # NOTE: do NOT list ufw.service here — on Debian it is a ONESHOT that
+      # applies rules at boot then exits, so systemd reports it inactive/dead
+      # while the firewall stays fully enforced. Firewall health is reported
+      # functionally as security_snapshot.firewall.active (94-security.yaml),
+      # not via this systemd matrix. (#66)
+      # - "ufw.service"
       # - "nftables.service"
       # - "crowdsec.service"    # CrowdSec engine
       # - "auditd.service"      # Linux audit daemon

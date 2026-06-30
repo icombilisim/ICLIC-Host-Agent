@@ -37,6 +37,14 @@ import (
 //	socket:           string  optional, default /var/run/docker.sock
 //	waf_container:    string  optional, default icosys-waf
 //	nginx_container:  string  optional, default icosys-nginx
+//	waf_log:          string  optional — host file path to a ModSecurity log
+//	                          (e.g. /var/log/nginx/error.log). When set, WAF blocks
+//	                          are read from this FILE instead of waf_container, so a
+//	                          host that runs nginx+ModSec on the host (not a
+//	                          container) reports too. (#66)
+//	nginx_log:        string  optional — host file path to an nginx access log
+//	                          (e.g. /var/log/nginx/access.log). When set, 4xx counts
+//	                          are read from this FILE instead of nginx_container. (#66)
 //	banned_ips_log:   string  optional, default /var/lib/icosys/auto-ban/banned-ips.log
 //	firewall_chain:   string  optional, default DOCKER-USER
 //
@@ -46,8 +54,9 @@ import (
 //	  "collected_at": "2026-06-28T10:00:00Z", "window_seconds": 3600,
 //	  "waf":      { "blocked": 1530, "by_class": { "sqli": 200, "rce": 50 } },
 //	  "nginx":    { "http_4xx": 4200, "http_403": 300, "http_429": 12 },
-//	  "fail2ban": { "banned_total": 340, "banned_window": 4 },
-//	  "firewall": { "dropped_packets": 88000 }
+//	  "fail2ban": { "banned_total": 340, "banned_window": 4,
+//	                "recent": [ { "ip": "1.2.3.4", "at": "...", "reason": "icosys-web" } ] },
+//	  "firewall": { "active": true, "dropped_packets": 88000 }
 //	}
 func securitySnapshot(ctx context.Context, args map[string]any) (any, error) {
 	window := time.Duration(int(argFloat(args, "window_seconds", 3600))) * time.Second
@@ -76,16 +85,38 @@ func securitySnapshot(ctx context.Context, args map[string]any) (any, error) {
 		"collected_at":   now.UTC().Format(time.RFC3339),
 		"window_seconds": int(window.Seconds()),
 	}
-	if waf := collectWAFBlocks(ctx, socket, argString(args, "waf_container", "icosys-waf"), since); waf != nil {
+	// WAF: a host-file source (waf_log) takes precedence over the container
+	// source, so host-nginx+ModSec servers report without a WAF container. (#66)
+	if wafLog := argString(args, "waf_log", ""); wafLog != "" {
+		if waf := collectWAFBlocksFile(wafLog, since); waf != nil {
+			out["waf"] = waf
+		}
+	} else if waf := collectWAFBlocks(ctx, socket, argString(args, "waf_container", "icosys-waf"), since); waf != nil {
 		out["waf"] = waf
 	}
-	if ng := collectNginx4xx(ctx, socket, argString(args, "nginx_container", "icosys-nginx"), since); ng != nil {
+	// nginx 4xx: same file-vs-container precedence. (#66)
+	if nginxLog := argString(args, "nginx_log", ""); nginxLog != "" {
+		if ng := collectNginx4xxFile(nginxLog, since); ng != nil {
+			out["nginx"] = ng
+		}
+	} else if ng := collectNginx4xx(ctx, socket, argString(args, "nginx_container", "icosys-nginx"), since); ng != nil {
 		out["nginx"] = ng
 	}
 	if f2b := collectFail2ban(argString(args, "banned_ips_log", "/var/lib/icosys/auto-ban/banned-ips.log"), since); f2b != nil {
 		out["fail2ban"] = f2b
 	}
-	if fw := collectFirewallDrops(ctx, argString(args, "firewall_chain", "DOCKER-USER")); fw != nil {
+	// Firewall: a functional "active" flag (INPUT default-deny) plus the per-chain
+	// drop counter. `active` is derived from the netfilter policy, NOT a systemd
+	// unit — so a oneshot firewall like Debian ufw (service exits after applying
+	// rules) is reported correctly instead of looking "down". (#66)
+	fw := collectFirewallDrops(ctx, argString(args, "firewall_chain", "DOCKER-USER"))
+	if active := firewallActive(ctx); active != nil {
+		if fw == nil {
+			fw = map[string]any{}
+		}
+		fw["active"] = *active
+	}
+	if len(fw) > 0 {
 		out["firewall"] = fw
 	}
 
@@ -125,6 +156,12 @@ var (
 	}
 	// nginx combined log: `... "GET /x HTTP/1.1" 403 1234 ...` — capture status.
 	nginxStatusRe = regexp.MustCompile(`"\s(\d{3})\s`)
+
+	// ModSecurity / nginx error-log line prefix: `2026/06/29 11:33:47 [error] ...`
+	// (local time, no offset). Used to window-filter a host error.log. (#66)
+	modsecLogTimeRe = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})`)
+	// nginx access-log time field: `... [29/Jun/2026:11:44:57 +0000] ...`. (#66)
+	nginxAccessTimeRe = regexp.MustCompile(`\[(\d{2}/[A-Za-z]{3}/\d{4}:\d{2}:\d{2}:\d{2} [+\-]\d{4})\]`)
 )
 
 // collectWAFBlocks counts ModSecurity "Access denied" lines in the window and
@@ -194,6 +231,90 @@ func countNginx4xx(lines []string) map[string]any {
 	return map[string]any{"http_4xx": c4xx, "http_403": c403, "http_429": c429}
 }
 
+// collectWAFBlocksFile counts ModSecurity "Access denied" lines from a host log
+// FILE (e.g. /var/log/nginx/error.log) within the window. For servers running
+// nginx+ModSec on the host rather than in a container. nil = file unreadable
+// (self-skip). (#66)
+func collectWAFBlocksFile(path string, since time.Time) map[string]any {
+	data, err := readFileTailCapped(path, 32<<20)
+	if err != nil {
+		return nil
+	}
+	lines := filterLinesSince(strings.Split(string(data), "\n"), modsecLogTimeRe, "2006/01/02 15:04:05", time.Local, since)
+	return countWAFBlocks(lines)
+}
+
+// collectNginx4xxFile counts 4xx responses from a host nginx access-log FILE
+// within the window. nil = file unreadable (self-skip). (#66)
+func collectNginx4xxFile(path string, since time.Time) map[string]any {
+	data, err := readFileTailCapped(path, 32<<20)
+	if err != nil {
+		return nil
+	}
+	lines := filterLinesSince(strings.Split(string(data), "\n"), nginxAccessTimeRe, "02/Jan/2006:15:04:05 -0700", nil, since)
+	return countNginx4xx(lines)
+}
+
+// filterLinesSince keeps only the log lines whose embedded timestamp is at or
+// after `since`. Lines without a parseable timestamp are dropped (partial first
+// line of a tail read, or non-log noise). `loc` is used when the timestamp has
+// no offset (nil = the layout carries its own zone). Pure (no I/O), testable.
+// (#66)
+func filterLinesSince(lines []string, tsRe *regexp.Regexp, layout string, loc *time.Location, since time.Time) []string {
+	var out []string
+	for _, ln := range lines {
+		m := tsRe.FindStringSubmatch(ln)
+		if m == nil {
+			continue
+		}
+		var (
+			ts  time.Time
+			err error
+		)
+		if loc != nil {
+			ts, err = time.ParseInLocation(layout, m[1], loc)
+		} else {
+			ts, err = time.Parse(layout, m[1])
+		}
+		if err != nil || ts.Before(since) {
+			continue
+		}
+		out = append(out, ln)
+	}
+	return out
+}
+
+// firewallActive reports whether the host firewall is enforcing, derived from
+// the netfilter INPUT default policy (DROP/REJECT) rather than a systemd unit —
+// so a oneshot firewall like Debian ufw (the service applies rules at boot then
+// exits) is reported as active, not "down". nil = iptables unavailable / no
+// privilege (omit, don't claim a state). (#66)
+func firewallActive(ctx context.Context) *bool {
+	cctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	var (
+		out []byte
+		err error
+	)
+	for _, bin := range []string{"iptables", "/usr/sbin/iptables", "/sbin/iptables"} {
+		out, err = exec.CommandContext(cctx, bin, "-S", "INPUT").Output()
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil
+	}
+	active := false
+	for _, ln := range strings.Split(string(out), "\n") {
+		switch strings.TrimSpace(ln) {
+		case "-P INPUT DROP", "-P INPUT REJECT":
+			active = true
+		}
+	}
+	return &active
+}
+
 // collectFail2ban reads the auto-ban log file (ip | ts UTC | reason). Reports
 // cumulative distinct IPs banned and how many fell in the window. nil = the
 // log is missing/unreadable, e.g. fail2ban isn't deployed here (self-skip).
@@ -204,6 +325,11 @@ func collectFail2ban(bannedLog string, since time.Time) map[string]any {
 	}
 	distinct := map[string]bool{}
 	windowCount := 0
+	// recent carries the in-window bans (ip + time + reason/jail) so ICLIC can
+	// show an actual "recent bans" list, not just a count. Capped to bound the
+	// heartbeat size. (#128)
+	const maxRecent = 100
+	recent := make([]map[string]any, 0, maxRecent)
 	for _, ln := range strings.Split(string(data), "\n") {
 		parts := strings.Split(ln, "|")
 		if len(parts) < 2 {
@@ -216,11 +342,28 @@ func collectFail2ban(bannedLog string, since time.Time) map[string]any {
 		distinct[ip] = true
 		// Timestamp form: "YYYY-MM-DD HH:MM:SS UTC".
 		tsRaw := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(parts[1]), "UTC"))
-		if ts, perr := time.Parse("2006-01-02 15:04:05", tsRaw); perr == nil && ts.After(since) {
-			windowCount++
+		ts, perr := time.Parse("2006-01-02 15:04:05", tsRaw)
+		if perr != nil || !ts.After(since) {
+			continue
+		}
+		windowCount++
+		if len(recent) < maxRecent {
+			reason := ""
+			if len(parts) >= 3 {
+				reason = strings.TrimSpace(parts[2])
+			}
+			recent = append(recent, map[string]any{
+				"ip":     ip,
+				"at":     ts.UTC().Format(time.RFC3339),
+				"reason": reason,
+			})
 		}
 	}
-	return map[string]any{"banned_total": len(distinct), "banned_window": windowCount}
+	res := map[string]any{"banned_total": len(distinct), "banned_window": windowCount}
+	if len(recent) > 0 {
+		res["recent"] = recent
+	}
+	return res
 }
 
 // collectFirewallDrops sums the DROP packet counters of a firewall chain
@@ -318,5 +461,27 @@ func readFileCapped(path string, maxBytes int64) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, maxBytes))
+}
+
+// readFileTailCapped reads up to the LAST maxBytes of a file. Access/error logs
+// grow with the newest entries at the end, so a window scan must read the tail,
+// not the head. The leading partial line (if the cap splits one) is harmless —
+// the timestamp filter drops anything it can't parse. (#66)
+func readFileTailCapped(path string, maxBytes int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if fi.Size() > maxBytes {
+		if _, err := f.Seek(fi.Size()-maxBytes, io.SeekStart); err != nil {
+			return nil, err
+		}
+	}
 	return io.ReadAll(io.LimitReader(f, maxBytes))
 }
