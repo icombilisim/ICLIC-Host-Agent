@@ -394,8 +394,12 @@ yüzden binding her host'ta güvenli ve yeni sunucu config'siz uyum sağlar.
 Her heartbeat'te log taramamak için en çok `window_seconds`'te bir toplar,
 aradaki tick'lerde önbellekteki snapshot'ı döner (aynı bytes → backend dedup
 eder, pencere başına tek satır saklar). WAF/nginx sayıları docker socket'ten
-container log'undan; fail2ban sayıları auto-ban log dosyasından; firewall
-drop'ları `CAP_NET_ADMIN` ister (olmadan kendini atlar).
+container log'undan **ya da nginx+ModSec'i host'ta (container değil) çalıştıran
+bir sunucuda log dosyalarından** gelir — `waf_log` / `nginx_log` ayarlandığında
+dosya kaynağı container'ı ezer; fail2ban sayıları auto-ban log dosyasından;
+firewall `active` netfilter INPUT varsayılan-reddi'dir (Debian ufw gibi oneshot
+bir firewall'da bile doğru), `dropped_packets` ise `CAP_NET_ADMIN` ister (olmadan
+o tek kaynağı atlar).
 
 | Arg            | Tip    | Varsayılan                                   | Açıklama |
 |----------------|--------|----------------------------------------------|----------|
@@ -403,6 +407,8 @@ drop'ları `CAP_NET_ADMIN` ister (olmadan kendini atlar).
 | socket         | string | `/var/run/docker.sock`                       | Unix socket yolu |
 | waf_container  | string | `icosys-waf`                                 | ModSecurity container adı |
 | nginx_container| string | `icosys-nginx`                               | nginx container adı |
+| waf_log        | string | _(boş)_                                      | Host ModSec log dosyası (örn. `/var/log/nginx/error.log`); `waf_container`'ı ezer |
+| nginx_log      | string | _(boş)_                                      | Host nginx access-log dosyası (örn. `/var/log/nginx/access.log`); `nginx_container`'ı ezer |
 | banned_ips_log | string | `/var/lib/icosys/auto-ban/banned-ips.log`    | auto-ban log dosyası |
 | firewall_chain | string | `DOCKER-USER`                                | DROP paketleri toplanacak iptables zinciri |
 
@@ -414,7 +420,7 @@ drop'ları `CAP_NET_ADMIN` ister (olmadan kendini atlar).
   waf:      { blocked, by_class: { sqli, rce, lfi, ... } },
   nginx:    { http_4xx, http_403, http_429 },
   fail2ban: { banned_total, banned_window },
-  firewall: { dropped_packets }
+  firewall: { active, dropped_packets }
 }
 ```
 

@@ -391,8 +391,12 @@ the binding is safe on any host and a new server adapts with no config.
 To avoid scanning logs on every heartbeat, it collects at most once per
 `window_seconds` and returns the cached snapshot in between (same bytes → the
 backend dedups, storing one row per window). WAF/nginx counts come from the
-container logs over the docker socket; fail2ban counts from reading the auto-ban
-log file; firewall drops need `CAP_NET_ADMIN` (self-skips without it).
+container logs over the docker socket **or, on a host that runs nginx+ModSec on
+the host (not a container), from log files** — set `waf_log` / `nginx_log` and
+the file source wins; fail2ban counts from reading the auto-ban log file;
+firewall `active` is the netfilter INPUT default-deny (correct even for a oneshot
+firewall like Debian ufw), and `dropped_packets` needs `CAP_NET_ADMIN`
+(self-skips without it).
 
 | Arg            | Type   | Default                                      | Description |
 |----------------|--------|----------------------------------------------|-------------|
@@ -400,6 +404,8 @@ log file; firewall drops need `CAP_NET_ADMIN` (self-skips without it).
 | socket         | string | `/var/run/docker.sock`                       | Unix socket path |
 | waf_container  | string | `icosys-waf`                                 | ModSecurity container name |
 | nginx_container| string | `icosys-nginx`                               | nginx container name |
+| waf_log        | string | _(unset)_                                    | Host ModSec log file (e.g. `/var/log/nginx/error.log`); overrides `waf_container` |
+| nginx_log      | string | _(unset)_                                    | Host nginx access-log file (e.g. `/var/log/nginx/access.log`); overrides `nginx_container` |
 | banned_ips_log | string | `/var/lib/icosys/auto-ban/banned-ips.log`    | auto-ban log file |
 | firewall_chain | string | `DOCKER-USER`                                | iptables chain to sum DROP packets |
 
@@ -411,7 +417,7 @@ Shape (sources absent are omitted):
   waf:      { blocked, by_class: { sqli, rce, lfi, ... } },
   nginx:    { http_4xx, http_403, http_429 },
   fail2ban: { banned_total, banned_window },
-  firewall: { dropped_packets }
+  firewall: { active, dropped_packets }
 }
 ```
 

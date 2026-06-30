@@ -4,10 +4,13 @@
 #
 # Each sub-source self-skips when absent, so this profile is safe on any host:
 #   - WAF/nginx counts come from the container logs via the docker socket
-#     (the agent is already in the docker group).
+#     (the agent is already in the docker group) OR, on a host that runs
+#     nginx+ModSec on the HOST (not a container), from log FILES — set waf_log
+#     / nginx_log and the file source takes precedence over the container. (#66)
 #   - fail2ban counts come from reading the auto-ban log file.
-#   - firewall drops need CAP_NET_ADMIN; without it the agent self-skips that
-#     one source (the rest still report).
+#   - firewall: `active` (netfilter INPUT default-deny — correct even for a
+#     oneshot firewall like Debian ufw) plus a per-chain drop counter (the
+#     counter needs CAP_NET_ADMIN; without it `active` still reports). (#66)
 #
 # Collected once per window_seconds (default 1h) — log scans are too heavy to
 # run every heartbeat; the backend dedups the cached snapshot in between.
@@ -19,6 +22,10 @@
     window_seconds: 3600
     waf_container: icosys-waf
     nginx_container: icosys-nginx
+    # Host-nginx WAF servers (e.g. devops): read from files instead of a
+    # container — uncomment and the file source wins over *_container. (#66)
+    # waf_log: /var/log/nginx/error.log
+    # nginx_log: /var/log/nginx/access.log
     banned_ips_log: /var/lib/icosys/auto-ban/banned-ips.log
     firewall_chain: DOCKER-USER
   output_key: security_snapshot

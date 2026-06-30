@@ -84,3 +84,77 @@ func TestCollectFail2banMissing(t *testing.T) {
 		t.Fatalf("missing file should self-skip, got %+v", got)
 	}
 }
+
+func TestFilterLinesSinceModsec(t *testing.T) {
+	now := time.Now()
+	layout := "2006/01/02 15:04:05"
+	recent := now.Add(-10*time.Minute).Format(layout) + " [error] ModSecurity: Access denied"
+	old := now.Add(-3*time.Hour).Format(layout) + " [error] ModSecurity: Access denied"
+	in := []string{recent, old, "no-timestamp noise line"}
+	got := filterLinesSince(in, modsecLogTimeRe, layout, time.Local, now.Add(-1*time.Hour))
+	if len(got) != 1 || got[0] != recent {
+		t.Fatalf("modsec window filter: %+v", got)
+	}
+}
+
+func TestFilterLinesSinceNginx(t *testing.T) {
+	layout := "02/Jan/2006:15:04:05 -0700"
+	since, _ := time.Parse(layout, "27/Jun/2026:11:00:00 +0000")
+	recent := `1.2.3.4 - - [27/Jun/2026:12:00:00 +0000] "GET /a HTTP/1.1" 403 0 "-" "ua"`
+	old := `1.2.3.4 - - [27/Jun/2026:09:00:00 +0000] "GET /b HTTP/1.1" 403 0 "-" "ua"`
+	got := filterLinesSince([]string{recent, old}, nginxAccessTimeRe, layout, nil, since)
+	if len(got) != 1 || got[0] != recent {
+		t.Fatalf("nginx window filter: %+v", got)
+	}
+}
+
+func TestCollectWAFBlocksFile(t *testing.T) {
+	now := time.Now()
+	layout := "2006/01/02 15:04:05"
+	p := filepath.Join(t.TempDir(), "error.log")
+	content := now.Add(-5*time.Minute).Format(layout) + ` [error] x ModSecurity: Access denied with code 403 [tag "attack-sqli"]` + "\n" +
+		now.Add(-2*time.Minute).Format(layout) + ` [error] x ModSecurity: Access denied with code 403 [tag "attack-rce"]` + "\n" +
+		now.Add(-3*time.Hour).Format(layout) + ` [error] x ModSecurity: Access denied with code 403` + "\n" // old, excluded
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := collectWAFBlocksFile(p, now.Add(-1*time.Hour))
+	if got == nil || got["blocked"] != 2 {
+		t.Fatalf("waf file blocked (window): %+v", got)
+	}
+}
+
+func TestCollectWAFBlocksFileMissing(t *testing.T) {
+	if got := collectWAFBlocksFile(filepath.Join(t.TempDir(), "nope.log"), time.Now()); got != nil {
+		t.Fatalf("missing file should self-skip, got %+v", got)
+	}
+}
+
+func TestCollectNginx4xxFile(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "access.log")
+	content := `1.2.3.4 - - [27/Jun/2026:12:00:00 +0000] "GET /a HTTP/1.1" 403 0 "-" "ua"` + "\n" +
+		`1.2.3.4 - - [27/Jun/2026:12:00:01 +0000] "GET /b HTTP/1.1" 200 0 "-" "ua"` + "\n" +
+		`1.2.3.4 - - [27/Jun/2026:09:00:00 +0000] "GET /c HTTP/1.1" 404 0 "-" "ua"` + "\n" // old, excluded
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	since, _ := time.Parse("02/Jan/2006:15:04:05 -0700", "27/Jun/2026:11:00:00 +0000")
+	got := collectNginx4xxFile(p, since)
+	if got == nil || got["http_4xx"] != 1 || got["http_403"] != 1 {
+		t.Fatalf("nginx file 4xx (window): %+v", got)
+	}
+}
+
+func TestReadFileTailCapped(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "f.log")
+	if err := os.WriteFile(p, []byte("AAAA\nBBBB\nCCCC\n"), 0o644); err != nil { // 15 bytes
+		t.Fatal(err)
+	}
+	got, err := readFileTailCapped(p, 5) // last 5 bytes
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "CCCC\n" {
+		t.Fatalf("tail read: got %q want %q", string(got), "CCCC\n")
+	}
+}
