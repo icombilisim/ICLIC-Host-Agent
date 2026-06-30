@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.24.0...v0.25.0) (2026-06-30)
+
+
+### Features
+
+* **collectors:** cpu_model, apt_upgradable + mysql_db_sizes bindings ([#796](https://github.com/icombilisim/ICLIC-Host-Agent/issues/796)) ([#71](https://github.com/icombilisim/ICLIC-Host-Agent/issues/71)) ([e59f40a](https://github.com/icombilisim/ICLIC-Host-Agent/commit/e59f40a2e0d47020904cfafdd3448b073b9416c6))
+
 ## [0.24.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.23.0...v0.24.0) (2026-06-30)
 
 
