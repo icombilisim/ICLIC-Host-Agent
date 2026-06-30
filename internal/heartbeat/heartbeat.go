@@ -25,7 +25,7 @@ import (
 // AgentVersion is managed by release-please — the x-release-please-version
 // annotation lets it rewrite this line on each release. Don't hand-edit the
 // value; protocol-level changes still bump ProtocolVersion below. (#337)
-const AgentVersion = "0.22.1" // x-release-please-version
+const AgentVersion = "0.23.0" // x-release-please-version
 
 // ProtocolVersion is the heartbeat schema version. Bumped on breaking changes;
 // ICLIC accepts the last N versions per docs/en/protocol.md.
