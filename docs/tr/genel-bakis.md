@@ -92,7 +92,8 @@ Ek olarak TLS son kullanma (`90-tls.yaml`), yedekler (`91-backups.yaml`), uptime
 Heartbeat omurgası fleet genelinde canlı: 28 YAML tabanlı primitive, dokuz
 profil, `runtime_instances` deployment sinyalleri ve PII içermeyen, push-only bir
 heartbeat. Control kanalı **read verb'leri** geldi — `logs.tail`, `proc.top`,
-`proc.top.live`, `disk.df`, `net.listen`, `cron.list` ve `metrics.live`
+`proc.top.live`, `disk.df`, `net.listen`, `cron.list`, `svc.status`, `svc.list`,
+`pkg.list`, `docker.ps` ve `metrics.live`
 (CPU/bellek/load akışı). **Write/yönetim verb'leri** (restart/deploy/prune, ICLIC
 tarafında 2FA korumalı) sıradaki faz.
 

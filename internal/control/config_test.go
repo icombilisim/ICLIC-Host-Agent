@@ -84,3 +84,29 @@ func TestVerbsIncludeLiveTopAndCron(t *testing.T) {
 		}
 	}
 }
+
+// The server-report verbs: enabling svc advertises both the health view and the
+// full inventory; pkg advertises the package list — each gated by its toggle. (#766)
+func TestVerbsIncludeReportInventory(t *testing.T) {
+	cfg := ControlConfig{Control: sectionControl{
+		Enabled: true,
+		Svc:     simpleVerb{Enabled: true},
+		Pkg:     simpleVerb{Enabled: true},
+	}}
+	got := map[string]bool{}
+	for _, v := range cfg.verbs() {
+		got[v] = true
+	}
+	for _, want := range []string{"svc.status", "svc.list", "pkg.list"} {
+		if !got[want] {
+			t.Fatalf("verbs() missing %q; got %v", want, cfg.verbs())
+		}
+	}
+
+	cfg.Control.Pkg.Enabled = false
+	for _, v := range cfg.verbs() {
+		if v == "pkg.list" {
+			t.Fatal("pkg.list advertised while pkg disabled")
+		}
+	}
+}

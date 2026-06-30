@@ -38,7 +38,8 @@ type sectionControl struct {
 	Df      simpleVerb `yaml:"df"`      // disk.df
 	Ports   simpleVerb `yaml:"ports"`   // net.listen
 	Cron    simpleVerb `yaml:"cron"`    // cron.list
-	Svc     simpleVerb `yaml:"svc"`     // svc.status
+	Svc     simpleVerb `yaml:"svc"`     // svc.status + svc.list
+	Pkg     simpleVerb `yaml:"pkg"`     // pkg.list
 	Docker  simpleVerb `yaml:"docker"`  // docker.ps
 	Metrics simpleVerb `yaml:"metrics"` // metrics.live
 }
@@ -132,6 +133,7 @@ func (c ControlConfig) dfEnabled() bool      { return c.Control.Enabled && c.Con
 func (c ControlConfig) portsEnabled() bool   { return c.Control.Enabled && c.Control.Ports.Enabled }
 func (c ControlConfig) cronEnabled() bool    { return c.Control.Enabled && c.Control.Cron.Enabled }
 func (c ControlConfig) svcEnabled() bool     { return c.Control.Enabled && c.Control.Svc.Enabled }
+func (c ControlConfig) pkgEnabled() bool     { return c.Control.Enabled && c.Control.Pkg.Enabled }
 func (c ControlConfig) dockerEnabled() bool  { return c.Control.Enabled && c.Control.Docker.Enabled }
 func (c ControlConfig) metricsEnabled() bool { return c.Control.Enabled && c.Control.Metrics.Enabled }
 
@@ -161,7 +163,11 @@ func (c ControlConfig) verbs() []string {
 		verbs = append(verbs, "cron.list")
 	}
 	if c.svcEnabled() {
-		verbs = append(verbs, "svc.status")
+		// One svc opt-in advertises both the health view and the full inventory. (#766)
+		verbs = append(verbs, "svc.status", "svc.list")
+	}
+	if c.pkgEnabled() {
+		verbs = append(verbs, "pkg.list")
 	}
 	if c.dockerEnabled() {
 		verbs = append(verbs, "docker.ps")

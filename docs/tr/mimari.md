@@ -97,8 +97,10 @@ komut çalıştırma yoktur.**
 
 `logs.tail` (canlı/follow) · `proc.top` · `proc.top.live` (otomatik tazelenen
 top) · `disk.df` · `net.listen` · `cron.list` (crontab + cron.d + systemd timer)
-· `metrics.live` (CPU/bellek/load örnekleri). Write/yönetim verb'leri sıradaki faz
-(ICLIC #339).
+· `svc.status` (çalışan + hatalı servisler) · `svc.list` (tam servis envanteri) ·
+`pkg.list` (kurulu OS paketleri, dpkg/rpm) · `docker.ps` · `metrics.live`
+(CPU/bellek/load örnekleri). `svc.list` ve `pkg.list` anlık sunucu raporunu besler
+(ICLIC #766). Write/yönetim verb'leri sıradaki faz (ICLIC #339).
 
 ### Opt-in yapılandırması
 
@@ -118,6 +120,9 @@ control:
   df:    { enabled: true }     # disk.df
   ports: { enabled: true }     # net.listen
   cron:  { enabled: true }     # cron.list
+  svc:   { enabled: true }     # svc.status + svc.list
+  pkg:   { enabled: true }     # pkg.list (kurulu OS paketleri)
+  docker: { enabled: true }    # docker.ps
   # actions: (write verb'leri — restart/deploy/prune) ICLIC #339 ile gelir
 ```
 

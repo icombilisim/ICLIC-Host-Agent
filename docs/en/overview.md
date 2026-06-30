@@ -92,7 +92,8 @@ Heartbeat backbone is live across the fleet: 28 YAML-driven primitives, nine
 shipped collector profiles, `runtime_instances` deployment signals, and a
 PII-free, push-only heartbeat. Control channel **read verbs** shipped —
 `logs.tail`, `proc.top`, `proc.top.live`, `disk.df`, `net.listen`, `cron.list`,
-plus `metrics.live` (CPU/mem/load streaming). **Write/management verbs**
+`svc.status`, `svc.list`, `pkg.list`, `docker.ps`, plus `metrics.live`
+(CPU/mem/load streaming). **Write/management verbs**
 (restart/deploy/prune, 2FA-gated on the ICLIC side) are the next phase.
 
 Tracking: ICLIC #40 · #337 (read) · #348 (live top + cron) · #339 (write).
