@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.23.0...v0.24.0) (2026-06-30)
+
+
+### Features
+
+* **control:** add pkg.list and svc.list verbs for the server report ([#766](https://github.com/icombilisim/ICLIC-Host-Agent/issues/766)) ([#69](https://github.com/icombilisim/ICLIC-Host-Agent/issues/69)) ([255658f](https://github.com/icombilisim/ICLIC-Host-Agent/commit/255658f2975f22f8816cdf3b9681700c329edba6))
+
 ## [0.23.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.22.1...v0.23.0) (2026-06-30)
 
 
