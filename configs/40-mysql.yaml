@@ -38,3 +38,18 @@
     timeout_sec: 10
     parse: raw
   output_key: mysql_db_sizes
+
+# Concurrent users = current active connections per database, a point-in-time
+# snapshot from information_schema.processlist (taken at heartbeat time). Output
+# is tab-separated "schema\tconnections" lines. Pairs with mysql_db_sizes in the
+# report's "Databases" table. Best-effort: omitted when the query can't run. (#796)
+- id: mysql_db_connections
+  primitive: exec
+  args:
+    cmd:
+      - sh
+      - -c
+      - 'docker exec icosys-mysql mysql -N -B -e "SELECT db, COUNT(*) FROM information_schema.processlist WHERE db IS NOT NULL GROUP BY db ORDER BY 2 DESC"'
+    timeout_sec: 10
+    parse: raw
+  output_key: mysql_db_connections
