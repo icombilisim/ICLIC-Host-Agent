@@ -96,8 +96,10 @@ shell — there is no arbitrary command execution, ever.**
 
 `logs.tail` (live/follow) · `proc.top` · `proc.top.live` (auto-refreshing top) ·
 `disk.df` · `net.listen` · `cron.list` (crontabs + cron.d + systemd timers) ·
-`metrics.live` (CPU/mem/load samples). Write/management verbs are the next phase
-(ICLIC #339).
+`svc.status` (running + failed services) · `svc.list` (full service inventory) ·
+`pkg.list` (installed OS packages, dpkg/rpm) · `docker.ps` · `metrics.live`
+(CPU/mem/load samples). `svc.list` and `pkg.list` back the on-demand server
+report (ICLIC #766). Write/management verbs are the next phase (ICLIC #339).
 
 ### Opt-in config
 
@@ -117,6 +119,9 @@ control:
   df:    { enabled: true }     # disk.df
   ports: { enabled: true }     # net.listen
   cron:  { enabled: true }     # cron.list
+  svc:   { enabled: true }     # svc.status + svc.list
+  pkg:   { enabled: true }     # pkg.list (installed OS packages)
+  docker: { enabled: true }    # docker.ps
   # actions: (write verbs — restart/deploy/prune) land with ICLIC #339
 ```
 

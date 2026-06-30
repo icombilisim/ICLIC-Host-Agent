@@ -196,6 +196,10 @@ func (s *session) handleReq(ctx context.Context, f reqFrame) {
 		s.spawn(ctx, f, s.cronListJob)
 	case "svc.status":
 		s.spawn(ctx, f, s.svcStatusJob)
+	case "svc.list":
+		s.spawn(ctx, f, s.svcListJob)
+	case "pkg.list":
+		s.spawn(ctx, f, s.pkgListJob)
 	case "docker.ps":
 		s.spawn(ctx, f, s.dockerPsJob)
 	case "metrics.live":
@@ -319,6 +323,40 @@ func (s *session) svcStatusJob(ctx context.Context, f reqFrame) {
 		"--state=running,failed", "--no-pager", "--no-legend", "--plain",
 	}
 	s.streamCommand(ctx, f.ReqID, argv, 1000)
+}
+
+// svcListJob serves svc.list: the FULL installed systemd service inventory across
+// all load/active states (systemctl --all), for the server report's "installed
+// services" section. svc.status stays the running+failed health view; this is the
+// complete unit picture. Gated on the same svc opt-in. (#766)
+func (s *session) svcListJob(ctx context.Context, f reqFrame) {
+	if !s.cfg.svcEnabled() {
+		s.bestEffort(errFrame(f.ReqID, "not_permitted", 403))
+		return
+	}
+	argv := []string{
+		"systemctl", "list-units", "--type=service", "--all",
+		"--no-pager", "--no-legend", "--plain",
+	}
+	s.streamCommand(ctx, f.ReqID, argv, 2000)
+}
+
+// pkgListJob serves pkg.list: the installed OS package inventory, for the server
+// report's "installed apps" section. The sh -c script is a fixed constant (no
+// ICLIC/operator input) that selects the host's package manager — dpkg on
+// Debian/Ubuntu, rpm on RHEL — so it does not reintroduce the forbidden shell
+// pass-through, mirroring the cron.list precedent. (#766)
+func (s *session) pkgListJob(ctx context.Context, f reqFrame) {
+	if !s.cfg.pkgEnabled() {
+		s.bestEffort(errFrame(f.ReqID, "not_permitted", 403))
+		return
+	}
+	const script = "if command -v dpkg-query >/dev/null 2>&1; then " +
+		"dpkg-query -W -f='${Package}\\t${Version}\\t${Architecture}\\n' 2>/dev/null | sort; " +
+		"elif command -v rpm >/dev/null 2>&1; then " +
+		"rpm -qa --qf '%{NAME}\\t%{VERSION}-%{RELEASE}\\t%{ARCH}\\n' 2>/dev/null | sort; " +
+		"else echo 'no supported package manager (dpkg/rpm)'; fi"
+	s.streamCommand(ctx, f.ReqID, []string{"sh", "-c", script}, 5000)
 }
 
 // dockerPsJob serves docker.ps: a snapshot of all containers and their state
