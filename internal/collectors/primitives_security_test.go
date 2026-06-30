@@ -77,6 +77,13 @@ func TestCollectFail2ban(t *testing.T) {
 	if got["banned_window"] != 2 { // two lines after 11:00 (12:00 and 12:05)
 		t.Fatalf("banned_window: %+v", got)
 	}
+	recent, ok := got["recent"].([]map[string]any)
+	if !ok || len(recent) != 2 { // the two in-window bans, with detail
+		t.Fatalf("recent bans list: %+v", got["recent"])
+	}
+	if recent[0]["ip"] != "1.2.3.4" || recent[0]["reason"] != "modsec" {
+		t.Fatalf("recent ban entry: %+v", recent[0])
+	}
 }
 
 func TestCollectFail2banMissing(t *testing.T) {

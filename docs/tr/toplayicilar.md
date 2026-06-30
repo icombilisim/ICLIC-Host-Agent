@@ -419,7 +419,7 @@ o tek kaynağı atlar).
   collected_at, window_seconds,
   waf:      { blocked, by_class: { sqli, rce, lfi, ... } },
   nginx:    { http_4xx, http_403, http_429 },
-  fail2ban: { banned_total, banned_window },
+  fail2ban: { banned_total, banned_window, recent: [ { ip, at, reason } ] },
   firewall: { active, dropped_packets }
 }
 ```

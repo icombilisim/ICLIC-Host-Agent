@@ -54,7 +54,8 @@ import (
 //	  "collected_at": "2026-06-28T10:00:00Z", "window_seconds": 3600,
 //	  "waf":      { "blocked": 1530, "by_class": { "sqli": 200, "rce": 50 } },
 //	  "nginx":    { "http_4xx": 4200, "http_403": 300, "http_429": 12 },
-//	  "fail2ban": { "banned_total": 340, "banned_window": 4 },
+//	  "fail2ban": { "banned_total": 340, "banned_window": 4,
+//	                "recent": [ { "ip": "1.2.3.4", "at": "...", "reason": "icosys-web" } ] },
 //	  "firewall": { "active": true, "dropped_packets": 88000 }
 //	}
 func securitySnapshot(ctx context.Context, args map[string]any) (any, error) {
@@ -324,6 +325,11 @@ func collectFail2ban(bannedLog string, since time.Time) map[string]any {
 	}
 	distinct := map[string]bool{}
 	windowCount := 0
+	// recent carries the in-window bans (ip + time + reason/jail) so ICLIC can
+	// show an actual "recent bans" list, not just a count. Capped to bound the
+	// heartbeat size. (#128)
+	const maxRecent = 100
+	recent := make([]map[string]any, 0, maxRecent)
 	for _, ln := range strings.Split(string(data), "\n") {
 		parts := strings.Split(ln, "|")
 		if len(parts) < 2 {
@@ -336,11 +342,28 @@ func collectFail2ban(bannedLog string, since time.Time) map[string]any {
 		distinct[ip] = true
 		// Timestamp form: "YYYY-MM-DD HH:MM:SS UTC".
 		tsRaw := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(parts[1]), "UTC"))
-		if ts, perr := time.Parse("2006-01-02 15:04:05", tsRaw); perr == nil && ts.After(since) {
-			windowCount++
+		ts, perr := time.Parse("2006-01-02 15:04:05", tsRaw)
+		if perr != nil || !ts.After(since) {
+			continue
+		}
+		windowCount++
+		if len(recent) < maxRecent {
+			reason := ""
+			if len(parts) >= 3 {
+				reason = strings.TrimSpace(parts[2])
+			}
+			recent = append(recent, map[string]any{
+				"ip":     ip,
+				"at":     ts.UTC().Format(time.RFC3339),
+				"reason": reason,
+			})
 		}
 	}
-	return map[string]any{"banned_total": len(distinct), "banned_window": windowCount}
+	res := map[string]any{"banned_total": len(distinct), "banned_window": windowCount}
+	if len(recent) > 0 {
+		res["recent"] = recent
+	}
+	return res
 }
 
 // collectFirewallDrops sums the DROP packet counters of a firewall chain
