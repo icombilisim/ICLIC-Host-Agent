@@ -21,7 +21,7 @@
 #   PROFILES       comma-separated collector profiles (default: host,docker,systemd)
 #                  available: host, docker, security-posture, systemd, icosys,
 #                             mysql, redis, nginx, iclic, devops, aigw-test,
-#                             aigw-prod, security
+#                             aigw-prod, security, vitals, hardware
 #   INSTALL_DIR    default /opt/iclic-host-agent
 #   CONFIG_DIR     default /etc/iclic-host-agent
 #   STATE_DIR      default /var/lib/iclic-host-agent
@@ -338,6 +338,13 @@ declare -A PROFILE_TO_FILE=(
   # Fleet security telemetry (WAF blocks, nginx 4xx, fail2ban bans, firewall
   # drops) for the weekly security digest. Self-skips absent sources. (#707)
   [security]=94-security.yaml
+  # Live disk I/O + network throughput rates (Linux /proc; self-omits elsewhere).
+  # Opt-in — each tick samples ~1s. (icombilisim/ICLIC-1.0#828)
+  [vitals]=93-vitals.yaml
+  # Hardware identity + maintenance inventory (CPU model, upgradable-package
+  # count) via the unprivileged `exec` primitive; best-effort per key.
+  # (icombilisim/ICLIC-1.0#828)
+  [hardware]=95-hardware.yaml
 )
 
 echo ">> Activating profiles: ${PROFILES}"

@@ -67,6 +67,8 @@ The agent learns its "measure this" list from YAML profiles. Each YAML is a
 | `devops` | `80-devops-stack.yaml` | Nexus + SonarQube + Dokploy + Postgres |
 | `aigw-test` | `90-aigw-test.yaml` | AI Gateway on the TEST host (`icosys-aigw`, port 8095) |
 | `aigw-prod` | `90-aigw-prod.yaml` | AI Gateway on the ICLIC-PROD host (`iclic-aigw`, port 8095) |
+| `vitals` | `93-vitals.yaml` | Live disk I/O + network throughput rates (Linux `/proc`; omitted on non-Linux). Opt-in — samples ~1s per tick |
+| `hardware` | `95-hardware.yaml` | Hardware identity + maintenance inventory: CPU model + upgradable-package count (unprivileged `exec`; best-effort per key) |
 
 **Rule:** add a profile only for what the host actually runs. Don't probe a port
 nothing listens on.

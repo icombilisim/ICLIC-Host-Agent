@@ -75,6 +75,8 @@ referansı için [`toplayicilar.md`](toplayicilar.md).
 | `devops` | `80-devops-stack.yaml` | Nexus + SonarQube + Dokploy + Postgres |
 | `aigw-test` | `90-aigw-test.yaml` | TEST sunucusundaki AI Gateway (`icosys-aigw`, port 8095) |
 | `aigw-prod` | `90-aigw-prod.yaml` | ICLIC-PROD sunucusundaki AI Gateway (`iclic-aigw`, port 8095) |
+| `vitals` | `93-vitals.yaml` | Canlı disk I/O + ağ throughput oranları (Linux `/proc`; Linux dışında atlanır). Opt-in — tick başına ~1s örnekler |
+| `hardware` | `95-hardware.yaml` | Donanım kimliği + bakım envanteri: CPU modeli + yükseltilebilir paket sayısı (yetkisiz `exec`; her key best-effort) |
 
 ### Hangi sunucuya hangileri?
 
