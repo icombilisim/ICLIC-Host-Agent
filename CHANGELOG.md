@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.25.0...v0.26.0) (2026-07-01)
+
+
+### Features
+
+* **installer:** add selectable hardware and vitals collector profiles ([#73](https://github.com/icombilisim/ICLIC-Host-Agent/issues/73)) ([c891fa7](https://github.com/icombilisim/ICLIC-Host-Agent/commit/c891fa7bbf05b71e3d9adb7b959b09d11d419e0d))
+
 ## [0.25.0](https://github.com/icombilisim/ICLIC-Host-Agent/compare/v0.24.0...v0.25.0) (2026-06-30)
 
 
