@@ -16,6 +16,8 @@
 #   devops      Nexus + SonarQube + Dokploy + Postgres
 #   aigw-test   AI Gateway on the TEST host (container icosys-aigw, port 8095)
 #   aigw-prod   AI Gateway on the ICLIC-PROD host (container iclic-aigw, port 8095)
+#   vitals      Live disk I/O + network throughput rates (Linux /proc; opt-in, samples ~1s/tick)
+#   hardware    Hardware identity + maintenance inventory (CPU model, upgradable-package count)
 #
 # Note: AI Gateway is split into two profiles because test and prod must send
 # distinct runtime instance_key values (ICLIC dedup ignores the reporting
